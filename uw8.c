@@ -7,7 +7,9 @@
 
 #include <wasm3.h>
 #include <m3_env.h>
+
 #include "loader.h"
+#include "platform.h"
 #include "libretro.h"
 
 static retro_input_state_t input_state_cb;
