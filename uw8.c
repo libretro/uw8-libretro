@@ -18,6 +18,8 @@ retro_audio_sample_batch_t audio_cb;
 static uint8_t *pic;
 static M3Environment* env;
 static M3Runtime* runtime;
+static M3Module* module;
+static M3Function* upd;
 
 void
 retro_init(void)
@@ -68,6 +70,12 @@ retro_load_game(const struct retro_game_info *game)
 	runtime->memory.maxPages = 1;
 	//ResizeMemory(runtime, 1);
 
+	m3_ParseModule(env, &module, wasmBuffer, byteLength)
+	module->memoryImported = true;
+	m3_LoadModule(runtime, module);
+
+	m3_FindFunction(&upd, runtime, "upd");
+
 	return true;
 }
 
@@ -75,6 +83,8 @@ void
 retro_run(void)
 {
 	input_poll_cb();
+
+	m3_CallV(upd);
 }
 
 void
@@ -130,11 +140,15 @@ retro_unserialize(const void *data, size_t size)
 	return false;
 }
 
+void retro_deinit(void) {
+	m3_FreeRuntime(runtime);
+    m3_FreeEnvironment(env);
+}
+
 void retro_set_controller_port_device(unsigned port, unsigned device) {}
 size_t retro_get_memory_size(unsigned id) { return 0; }
 void * retro_get_memory_data(unsigned id) { return NULL; }
 void retro_unload_game(void) {}
-void retro_deinit(void) {}
 void retro_set_audio_sample(retro_audio_sample_t cb) {}
 void retro_cheat_reset(void) {}
 void retro_cheat_set(unsigned index, bool enabled, const char *code) {}
