@@ -3,6 +3,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+
+#include <wasm3.h>
+#include <m3_env.h>
 #include "libretro.h"
 
 static retro_input_state_t input_state_cb;
@@ -10,6 +14,10 @@ static retro_input_poll_t input_poll_cb;
 static retro_video_refresh_t video_cb;
 static retro_environment_t environ_cb;
 retro_audio_sample_batch_t audio_cb;
+
+static uint8_t *pic;
+static M3Environment* env;
+static M3Runtime* runtime;
 
 void
 retro_init(void)
@@ -48,6 +56,18 @@ retro_api_version(void)
 bool
 retro_load_game(const struct retro_game_info *game)
 {
+	enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_XRGB8888;
+	if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt))
+		return false;
+	
+	pic = malloc(320 * 240 * 256);
+
+	env = m3_NewEnvironment();
+	uint32_t wasm3StackSize = 64 * 1024;
+	runtime = m3_NewRuntime(env, wasm3StackSize, NULL);
+	runtime->memory.maxPages = 1;
+	//ResizeMemory(runtime, 1);
+
 	return true;
 }
 

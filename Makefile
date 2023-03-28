@@ -12,7 +12,8 @@ else ifneq ($(findstring Darwin,$(shell uname -s)),) # osx
 	TARGET := uw8_libretro.dylib
 endif
 
-CFLAGS += -O3 -fPIC -flto -L.
+CFLAGS += -O3 -fPIC -flto -I. -Iwasm3/source
+LDFLAGS += -L. -lm3
 
 OBJ = uw8.o
 
@@ -20,7 +21,7 @@ OBJ = uw8.o
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 $(TARGET): $(OBJ)
-	$(CC) $(SHARED) -o $@ $^ $(CFLAGS) -lm3
+	$(CC) $(SHARED) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
 clean:
 	rm $(OBJ) $(TARGET)
