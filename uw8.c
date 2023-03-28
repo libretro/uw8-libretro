@@ -86,12 +86,12 @@ retro_load_game(const struct retro_game_info *game)
 	uint8_t* memory = m3_GetMemory(runtime, NULL, 0);
 	memcpy(memory, platform, sizeof(platform));
 
-	check(m3_ParseModule(env, &module, loader, sizeof(loader) / sizeof(loader[0])));
+	check(m3_ParseModule(env, &module, loader, sizeof(loader)));
 	module->memoryImported = true;
 	check(m3_LoadModule(runtime, module));
 
 	m3_FindFunction(&load_uw8, runtime, "load_uw8");
-	M3Result res = m3_CallV(load_uw8, platform);
+	M3Result res = m3_CallV(load_uw8, sizeof(platform));
 
 	printf("res: %s\n", res);
 
