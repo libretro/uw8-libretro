@@ -23,6 +23,7 @@ static M3Environment* env;
 static M3Runtime* runtime;
 static M3Module* module;
 static M3Function* upd;
+static M3Function* load_uw8;
 
 void
 retro_init(void)
@@ -83,11 +84,15 @@ retro_load_game(const struct retro_game_info *game)
 	//ResizeMemory(runtime, 1);
 
 	check(m3_ParseModule(env, &module, loader, sizeof(loader) / sizeof(loader[0])));
-
-	check(m3_ParseModule(env, &module, (uint8_t*)game->data, game->size));
-
 	module->memoryImported = true;
 	check(m3_LoadModule(runtime, module));
+
+	m3_FindFunction(&load_uw8, runtime, "load_uw8");
+	m3_CallV(load_uw8, game->data, game->size);
+
+	//check(m3_ParseModule(env, &module, (uint8_t*)game->data, game->size));
+
+
 
 	// m3_LinkRawFunction(module, "env", "cls", "v(iiiiii)", cls);
 
