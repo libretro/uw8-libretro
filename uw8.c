@@ -7,6 +7,7 @@
 
 #include <wasm3.h>
 #include <m3_env.h>
+#include "loader.h"
 #include "libretro.h"
 
 static retro_input_state_t input_state_cb;
@@ -79,13 +80,18 @@ retro_load_game(const struct retro_game_info *game)
 	runtime->memory.maxPages = 1;
 	//ResizeMemory(runtime, 1);
 
+	check(m3_ParseModule(env, &module, loader, sizeof(loader) / sizeof(loader[0])));
+
 	check(m3_ParseModule(env, &module, (uint8_t*)game->data, game->size));
+
 	module->memoryImported = true;
 	check(m3_LoadModule(runtime, module));
 
 	// m3_LinkRawFunction(module, "env", "cls", "v(iiiiii)", cls);
 
 	m3_FindFunction(&upd, runtime, "upd");
+
+	check(m3_RunStart(module));
 
 	return true;
 }
