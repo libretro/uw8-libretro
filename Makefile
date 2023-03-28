@@ -13,7 +13,7 @@ else ifneq ($(findstring Darwin,$(shell uname -s)),) # osx
 endif
 
 CFLAGS += -O3 -fPIC -flto -I. -Iwasm3/source
-LDFLAGS += -L. -lm3
+LDFLAGS += -Lwasm3/source -lm3
 
 OBJ = uw8.o
 
