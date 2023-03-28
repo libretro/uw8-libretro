@@ -81,14 +81,21 @@ retro_load_game(const struct retro_game_info *game)
 	uint32_t wasm3StackSize = 64 * 1024;
 	runtime = m3_NewRuntime(env, wasm3StackSize, NULL);
 	runtime->memory.maxPages = 1;
-	//ResizeMemory(runtime, 1);
+	ResizeMemory(runtime, 1);
+
+	uint8_t* memory = m3_GetMemory(runtime, NULL, 0);
+	memcpy(memory, platform, sizeof(platform));
 
 	check(m3_ParseModule(env, &module, loader, sizeof(loader) / sizeof(loader[0])));
 	module->memoryImported = true;
 	check(m3_LoadModule(runtime, module));
 
 	m3_FindFunction(&load_uw8, runtime, "load_uw8");
-	m3_CallV(load_uw8, game->data, game->size);
+	M3Result res = m3_CallV(load_uw8, platform);
+
+	printf("res: %s\n", res);
+
+
 
 	//check(m3_ParseModule(env, &module, (uint8_t*)game->data, game->size));
 
