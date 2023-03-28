@@ -55,6 +55,15 @@ retro_api_version(void)
 	return RETRO_API_VERSION;
 }
 
+static void check (M3Result result) {
+    if (result != m3Err_none) {
+        M3ErrorInfo info;
+        m3_GetErrorInfo(runtime, &info);
+        fprintf(stderr, "WASM error: %s (%s)\n", result, info.message);
+        exit(1);
+    }
+}
+
 bool
 retro_load_game(const struct retro_game_info *game)
 {
@@ -70,9 +79,11 @@ retro_load_game(const struct retro_game_info *game)
 	runtime->memory.maxPages = 1;
 	//ResizeMemory(runtime, 1);
 
-	m3_ParseModule(env, &module, wasmBuffer, byteLength)
+	check(m3_ParseModule(env, &module, (uint8_t*)game->data, game->size));
 	module->memoryImported = true;
-	m3_LoadModule(runtime, module);
+	check(m3_LoadModule(runtime, module));
+
+	// m3_LinkRawFunction(module, "env", "cls", "v(iiiiii)", cls);
 
 	m3_FindFunction(&upd, runtime, "upd");
 
@@ -145,6 +156,10 @@ void retro_deinit(void) {
     m3_FreeEnvironment(env);
 }
 
+unsigned retro_get_region(void) {
+	return RETRO_REGION_NTSC;
+}
+
 void retro_set_controller_port_device(unsigned port, unsigned device) {}
 size_t retro_get_memory_size(unsigned id) { return 0; }
 void * retro_get_memory_data(unsigned id) { return NULL; }
@@ -153,4 +168,3 @@ void retro_set_audio_sample(retro_audio_sample_t cb) {}
 void retro_cheat_reset(void) {}
 void retro_cheat_set(unsigned index, bool enabled, const char *code) {}
 bool retro_load_game_special(unsigned game_type, const struct retro_game_info *info, size_t num_info) { return false; }
-unsigned retro_get_region(void) { return 0; }
