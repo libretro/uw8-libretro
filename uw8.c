@@ -80,32 +80,35 @@ retro_load_game(const struct retro_game_info *game)
 	env = m3_NewEnvironment();
 	uint32_t wasm3StackSize = 64 * 1024;
 	runtime = m3_NewRuntime(env, wasm3StackSize, NULL);
-	runtime->memory.maxPages = 1;
-	ResizeMemory(runtime, 1);
+	runtime->memory.maxPages = 4;
+	check(ResizeMemory(runtime, 4));
 
 	uint8_t* memory = m3_GetMemory(runtime, NULL, 0);
-	memcpy(memory, platform, sizeof(platform));
 
 	check(m3_ParseModule(env, &module, loader, sizeof(loader)));
 	module->memoryImported = true;
 	check(m3_LoadModule(runtime, module));
 
-	m3_FindFunction(&load_uw8, runtime, "load_uw8");
-	M3Result res = m3_CallV(load_uw8, sizeof(platform));
+	memcpy(memory, platform, sizeof(platform));
 
-	printf("res: %s\n", res);
+	check(m3_FindFunction(&load_uw8, runtime, "load_uw8"));
+	check(m3_CallV(load_uw8, sizeof(platform)));
 
+	uint32_t runtimeSize;
+	m3_GetResultsV(load_uw8, &runtimeSize);
+	printf("size: %u\n", runtimeSize);
 
-
-	//check(m3_ParseModule(env, &module, (uint8_t*)game->data, game->size));
-
-
+	// memcpy(memory, (uint8_t*)game->data, game->size);
+	// check(m3_CallV(load_uw8, game->size));
+	// uint32_t runtimeSize2;
+	// m3_GetResultsV(load_uw8, &runtimeSize2);
+	// printf("size: %u\n", runtimeSize2);
 
 	// m3_LinkRawFunction(module, "env", "cls", "v(iiiiii)", cls);
 
-	m3_FindFunction(&upd, runtime, "upd");
+	check(m3_FindFunction(&upd, runtime, "upd"));
 
-	check(m3_RunStart(module));
+	//check(m3_RunStart(module));
 
 	return true;
 }
