@@ -90,25 +90,22 @@ retro_load_game(const struct retro_game_info *game)
 	check(m3_LoadModule(runtime, module));
 
 	memcpy(memory, platform, sizeof(platform));
-
 	check(m3_FindFunction(&load_uw8, runtime, "load_uw8"));
 	check(m3_CallV(load_uw8, sizeof(platform)));
+	uint32_t platformsize;
+	m3_GetResultsV(load_uw8, &platformsize);
+	printf("size: %u\n", platformsize);
 
-	uint32_t runtimeSize;
-	m3_GetResultsV(load_uw8, &runtimeSize);
-	printf("size: %u\n", runtimeSize);
-
-	// memcpy(memory, (uint8_t*)game->data, game->size);
-	// check(m3_CallV(load_uw8, game->size));
-	// uint32_t runtimeSize2;
-	// m3_GetResultsV(load_uw8, &runtimeSize2);
-	// printf("size: %u\n", runtimeSize2);
-
-	// m3_LinkRawFunction(module, "env", "cls", "v(iiiiii)", cls);
+	memcpy(memory, (uint8_t*)game->data, game->size);
+	check(m3_CallV(load_uw8, game->size));
+	uint32_t gamesize;
+	m3_GetResultsV(load_uw8, &gamesize);
+	printf("size: %u\n", gamesize);
 
 	check(m3_FindFunction(&upd, runtime, "upd"));
 
-	//check(m3_RunStart(module));
+	check(m3_RunStart(module));
+
 
 	return true;
 }
