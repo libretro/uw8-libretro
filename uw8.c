@@ -17,8 +17,9 @@ static retro_input_state_t input_state_cb;
 static retro_input_poll_t input_poll_cb;
 static retro_video_refresh_t video_cb;
 static retro_environment_t environ_cb;
-retro_audio_sample_batch_t audio_cb;
+retro_audio_sample_t audio_cb;
 
+uint32_t sampleIndex = 0;
 IM3Environment env;
 static M3Runtime* main_runtime;
 static M3Runtime* audio_runtime;
@@ -282,24 +283,28 @@ retro_run(void)
 	verifyM3(main_runtime, m3_CallV(upd));
 
 	uint32_t* palette = (uint32_t*)&memory[0x13000];
-
+	uint8_t* pixels = memory + 0x00078;
 	uint32_t pic[320*240];
 
 	for (int i = 0; i < 320*240; i++)
 	{
-		uint8_t px = memory[0x00078 + i];
-		uint32_t c = palette[px];
+		uint32_t c = palette[pixels[i]];
 		pic[i] = (c & 0xff00ff00) | ((c & 0xff) << 16) | ((c >> 16) & 0xff);
 	}
 
 	video_cb(&pic, 320, 240, 320*sizeof(uint32_t));
 
-	// int16_t audio[32];
-	// for (int i = 0; i < 32; i++)
-	// 	audio[i] = (int16_t)memory[0x00050 + i];
-	// audio_cb(audio, 32);
+	for(int i = 0; i < 44100/60; ++i) {
+		float_t left = 0;
+		m3_CallV(sndGes, ++sampleIndex);
+		m3_GetResultsV(sndGes, &left);
 
-	verifyM3(audio_runtime, m3_CallV(sndGes));
+		float_t right = 0;
+		m3_CallV(sndGes, ++sampleIndex);
+		m3_GetResultsV(sndGes, &right);
+
+		audio_cb((int16_t)(left * 32767.0f), (int16_t)(right * 32767.0f));
+	}
 }
 
 void
@@ -327,9 +332,9 @@ retro_set_environment(retro_environment_t cb)
 }
 
 void
-retro_set_audio_sample_batch(retro_audio_sample_batch_t cb)
+retro_set_audio_sample(retro_audio_sample_t cb)
 {
-    audio_cb = cb;
+	audio_cb = cb;
 }
 
 void
@@ -357,6 +362,7 @@ retro_unserialize(const void *data, size_t size)
 
 void
 retro_deinit(void) {
+	sampleIndex = 0;
 	m3_FreeRuntime(main_runtime);
 	m3_FreeRuntime(audio_runtime);
     m3_FreeEnvironment(env);
@@ -371,7 +377,7 @@ void retro_set_controller_port_device(unsigned port, unsigned device) {}
 size_t retro_get_memory_size(unsigned id) { return 0; }
 void * retro_get_memory_data(unsigned id) { return NULL; }
 void retro_unload_game(void) {}
-void retro_set_audio_sample(retro_audio_sample_t cb) {}
+void retro_set_audio_sample_batch(retro_audio_sample_batch_t cb) {}
 void retro_cheat_reset(void) {}
 void retro_cheat_set(unsigned index, bool enabled, const char *code) {}
 bool retro_load_game_special(unsigned game_type, const struct retro_game_info *info, size_t num_info) { return false; }
