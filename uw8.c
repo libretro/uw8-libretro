@@ -26,6 +26,7 @@ static M3Runtime* audio_runtime;
 uint8_t* memory;
 static M3Function* upd;
 static M3Function* sndGes;
+static M3Function* endFrame;
 
 void
 retro_init(void)
@@ -255,6 +256,7 @@ retro_load_game(const struct retro_game_info *game)
 
 	verifyM3(main_runtime, m3_FindFunction(&upd, main_runtime, "upd"));
 	verifyM3(audio_runtime, m3_FindFunction(&sndGes, audio_runtime, "sndGes"));
+	verifyM3(main_runtime, m3_FindFunction(&endFrame, main_runtime, "endFrame"));
 
 	return true;
 }
@@ -299,15 +301,17 @@ retro_run(void)
 
 	for(int i = 0; i < 44100/60; ++i) {
 		float_t left = 0;
-		m3_CallV(sndGes, ++sampleIndex);
-		m3_GetResultsV(sndGes, &left);
+		verifyM3(audio_runtime, m3_CallV(sndGes, ++sampleIndex));
+		verifyM3(audio_runtime, m3_GetResultsV(sndGes, &left));
 
 		float_t right = 0;
-		m3_CallV(sndGes, ++sampleIndex);
-		m3_GetResultsV(sndGes, &right);
+		verifyM3(audio_runtime, m3_CallV(sndGes, ++sampleIndex));
+		verifyM3(audio_runtime, m3_GetResultsV(sndGes, &right));
 
 		audio_cb((int16_t)(left * 32767.0f), (int16_t)(right * 32767.0f));
 	}
+
+	verifyM3(main_runtime, m3_CallV(endFrame));
 }
 
 void
