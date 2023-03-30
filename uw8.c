@@ -58,116 +58,120 @@ retro_api_version(void)
 	return RETRO_API_VERSION;
 }
 
-static void check (M3Result result) {
-    if (result != m3Err_none) {
-        M3ErrorInfo info;
-        m3_GetErrorInfo(runtime, &info);
-        fprintf(stderr, "WASM error: %s (%s)\n", result, info.message);
-        exit(1);
-    }
+void
+verifyM3(IM3Runtime runtime, M3Result result)
+{
+	if (result != m3Err_none)
+	{
+		M3ErrorInfo info;
+		m3_GetErrorInfo(runtime, &info);
+		fprintf(stderr, "WASM error: %s (%s)\n", result, info.message);
+		exit(1);
+	}
 }
 
-void verifyM3(IM3Runtime runtime, M3Result result) {
-  if (result != m3Err_none) {
-    M3ErrorInfo info;
-    m3_GetErrorInfo(runtime, &info);
-    fprintf(stderr, "WASM error: %s (%s)\n", result, info.message);
-    exit(1);
-  }
+m3ApiRawFunction(math1)
+{
+	m3ApiReturnType(float);
+	m3ApiGetArg(float, v);
+	*raw_return = ((float(*)(float))_ctx->userdata)(v);
+	m3ApiSuccess();
 }
 
-m3ApiRawFunction(math1) {
-  m3ApiReturnType(float);
-  m3ApiGetArg(float, v);
-  *raw_return = ((float(*)(float))_ctx->userdata)(v);
-  m3ApiSuccess();
+m3ApiRawFunction(math2)
+{
+	m3ApiReturnType(float);
+	m3ApiGetArg(float, a);
+	m3ApiGetArg(float, b);
+	*raw_return = ((float(*)(float, float))_ctx->userdata)(a, b);
+	m3ApiSuccess();
 }
 
-m3ApiRawFunction(math2) {
-  m3ApiReturnType(float);
-  m3ApiGetArg(float, a);
-  m3ApiGetArg(float, b);
-  *raw_return = ((float(*)(float, float))_ctx->userdata)(a, b);
-  m3ApiSuccess();
+m3ApiRawFunction(nopFunc)
+{
+	m3ApiSuccess();
 }
 
-m3ApiRawFunction(nopFunc) {
-  m3ApiSuccess();
+void
+linkSystemFunctions(IM3Runtime runtime, IM3Module mod)
+{
+	m3_LinkRawFunctionEx(mod, "env", "acos", "f(f)", math1, acosf);
+	m3_LinkRawFunctionEx(mod, "env", "asin", "f(f)", math1, asinf);
+	m3_LinkRawFunctionEx(mod, "env", "atan", "f(f)", math1, atanf);
+	m3_LinkRawFunctionEx(mod, "env", "atan2", "f(ff)", math2, atan2f);
+	m3_LinkRawFunctionEx(mod, "env", "cos", "f(f)", math1, cosf);
+	m3_LinkRawFunctionEx(mod, "env", "exp", "f(f)", math1, expf);
+	m3_LinkRawFunctionEx(mod, "env", "log", "f(f)", math1, logf);
+	m3_LinkRawFunctionEx(mod, "env", "sin", "f(f)", math1, sinf);
+	m3_LinkRawFunctionEx(mod, "env", "tan", "f(f)", math1, tanf);
+	m3_LinkRawFunctionEx(mod, "env", "pow", "f(ff)", math2, powf);
+
+	m3_LinkRawFunction(mod, "env", "logChar", "v(i)", nopFunc);
+
+	for(int i = 9; i < 64; ++i)
+	{
+		char name[128];
+		sprintf(name, "reserved%d", i);
+		m3_LinkRawFunction(mod, "env", name, "v()", nopFunc);
+	}
 }
 
-void linkSystemFunctions(IM3Runtime runtime, IM3Module mod) {
-  m3_LinkRawFunctionEx(mod, "env", "acos", "f(f)", math1, acosf);
-  m3_LinkRawFunctionEx(mod, "env", "asin", "f(f)", math1, asinf);
-  m3_LinkRawFunctionEx(mod, "env", "atan", "f(f)", math1, atanf);
-  m3_LinkRawFunctionEx(mod, "env", "atan2", "f(ff)", math2, atan2f);
-  m3_LinkRawFunctionEx(mod, "env", "cos", "f(f)", math1, cosf);
-  m3_LinkRawFunctionEx(mod, "env", "exp", "f(f)", math1, expf);
-  m3_LinkRawFunctionEx(mod, "env", "log", "f(f)", math1, logf);
-  m3_LinkRawFunctionEx(mod, "env", "sin", "f(f)", math1, sinf);
-  m3_LinkRawFunctionEx(mod, "env", "tan", "f(f)", math1, tanf);
-  m3_LinkRawFunctionEx(mod, "env", "pow", "f(ff)", math2, powf);
-
-  m3_LinkRawFunction(mod, "env", "logChar", "v(i)", nopFunc);
-
-  for(int i = 9; i < 64; ++i) {
-    char name[128];
-    sprintf(name, "reserved%d", i);
-    m3_LinkRawFunction(mod, "env", name, "v()", nopFunc);
-  }
-}
-
-m3ApiRawFunction(platformTrampoline) {
+m3ApiRawFunction(platformTrampoline)
+{
   IM3Function func = (IM3Function)_ctx->userdata;
   uint32_t retCount = m3_GetRetCount(func);
   uint32_t argCount = m3_GetArgCount(func);
   const void* args[16];
-  for(uint32_t i = 0; i < argCount; ++i) {
+  for(uint32_t i = 0; i < argCount; ++i)
     args[i] = &_sp[retCount + i];
-  }
   verifyM3(runtime, m3_Call(func, m3_GetArgCount(func), args));
-  for(uint32_t i = 0; i < retCount; ++i) {
+  for(uint32_t i = 0; i < retCount; ++i)
     args[i] = &_sp[i];
-  }
   verifyM3(runtime, m3_GetResults(func, retCount, args));
   m3ApiSuccess();
 }
 
-void appendType(char* signature, M3ValueType type) {
-  if(type == c_m3Type_i32) {
+void appendType(char* signature, M3ValueType type)
+{
+  if(type == c_m3Type_i32)
     strcat(signature, "i");
-  } else if(type == c_m3Type_i64) {
+  else if(type == c_m3Type_i64)
     strcat(signature, "l");
-  } else if(type == c_m3Type_f32) {
+  else if(type == c_m3Type_f32)
     strcat(signature, "f");
-  } else {
+  else
+  {
     fprintf(stderr, "Unsupported platform type %d\n", type);
     exit(1);
   }
 }
 
-void linkPlatformFunctions(IM3Runtime runtime, IM3Module cartMod, IM3Module platformMod) {
-  for(u32 functionIndex = 0; functionIndex < platformMod->numFunctions; ++functionIndex) {
-    M3Function function = platformMod->functions[functionIndex];
-    if(function.export_name != NULL) {
-      IM3Function iFunc;
-      verifyM3(runtime, m3_FindFunction(&iFunc, runtime, function.export_name));
-      char signature[128] = { 0 };
-      if(m3_GetRetCount(iFunc) > 0) {
-        appendType(signature, m3_GetRetType(iFunc, 0));
-      } else {
-        strcat(signature, "v");
-      }
-      strcat(signature, "(");
-      for(uint32_t i = 0; i < m3_GetArgCount(iFunc); ++i) {
-        appendType(signature, m3_GetArgType(iFunc, i));
-      }
-      strcat(signature, ")");
-      m3_LinkRawFunctionEx(cartMod, "env", function.export_name, signature, platformTrampoline, iFunc);
-    }
-  }
+void linkPlatformFunctions(IM3Runtime runtime, IM3Module cartMod, IM3Module platformMod)
+{
+	for(u32 functionIndex = 0; functionIndex < platformMod->numFunctions; ++functionIndex)
+	{
+		M3Function function = platformMod->functions[functionIndex];
+		if(function.export_name != NULL)
+		{
+			IM3Function iFunc;
+			verifyM3(runtime, m3_FindFunction(&iFunc, runtime, function.export_name));
+			char signature[128] = { 0 };
+			if(m3_GetRetCount(iFunc) > 0)
+				appendType(signature, m3_GetRetType(iFunc, 0));
+			else
+				strcat(signature, "v");
+			strcat(signature, "(");
+			for(uint32_t i = 0; i < m3_GetArgCount(iFunc); ++i)
+				appendType(signature, m3_GetArgType(iFunc, i));
+			strcat(signature, ")");
+			m3_LinkRawFunctionEx(cartMod, "env", function.export_name, signature, platformTrampoline, iFunc);
+		}
+	}
 }
 
-void* loadUw8(uint32_t* sizeOut, IM3Runtime runtime, IM3Function loadFunc, uint8_t* memory, const unsigned char* uw8, size_t uw8Size) {
+void*
+loadUw8(uint32_t* sizeOut, IM3Runtime runtime, IM3Function loadFunc, uint8_t* memory, const unsigned char* uw8, size_t uw8Size)
+{
   memcpy(memory, uw8, uw8Size);
   verifyM3(runtime, m3_CallV(loadFunc, (uint32_t)uw8Size));
   verifyM3(runtime, m3_GetResultsV(loadFunc, sizeOut));
@@ -229,7 +233,7 @@ retro_load_game(const struct retro_game_info *game)
 	return true;
 }
 
-static const int retro_bind[] = {
+static const uint8_t retro_bind[] = {
 	[RETRO_DEVICE_ID_JOYPAD_UP] = 0,
 	[RETRO_DEVICE_ID_JOYPAD_DOWN] = 1<<1,
 	[RETRO_DEVICE_ID_JOYPAD_LEFT] = 1<<2,
