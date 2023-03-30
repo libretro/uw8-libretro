@@ -294,6 +294,9 @@ retro_run(void)
 
 	video_cb(&pic, 320, 240, 320*sizeof(uint32_t));
 
+	uint8_t* audio_memory = m3_GetMemory(audio_runtime, NULL, 0);
+	memcpy(audio_memory + 0x00050, memory + 0x00050, 32);
+
 	for(int i = 0; i < 44100/60; ++i) {
 		float_t left = 0;
 		m3_CallV(sndGes, ++sampleIndex);
