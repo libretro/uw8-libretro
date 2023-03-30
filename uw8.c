@@ -24,6 +24,7 @@ static M3Runtime* main_runtime;
 static M3Runtime* audio_runtime;
 uint8_t* memory;
 static M3Function* upd;
+static M3Function* sndGes;
 
 void
 retro_init(void)
@@ -189,9 +190,14 @@ retro_load_game(const struct retro_game_info *game)
 		return false;
 
 	env = m3_NewEnvironment();
+
 	main_runtime = m3_NewRuntime(env, 16384, NULL);
 	main_runtime->memory.maxPages = 4;
 	verifyM3(main_runtime, ResizeMemory(main_runtime, 4));
+
+	audio_runtime = m3_NewRuntime(env, 16384, NULL);
+	audio_runtime->memory.maxPages = 4;
+	verifyM3(audio_runtime, ResizeMemory(audio_runtime, 4));
 
 	memory = m3_GetMemory(main_runtime, NULL, 0);
 	assert(memory != NULL);
@@ -220,6 +226,14 @@ retro_load_game(const struct retro_game_info *game)
 	verifyM3(main_runtime, m3_CompileModule(platformMod));
 	verifyM3(main_runtime, m3_RunStart(platformMod));
 
+	IM3Module audio_platformMod;
+	verifyM3(main_runtime, m3_ParseModule(env, &audio_platformMod, platformWasm, platformSize));
+	audio_platformMod->memoryImported = true;
+	verifyM3(audio_runtime, m3_LoadModule(audio_runtime, audio_platformMod));
+	linkSystemFunctions(audio_runtime, audio_platformMod);
+	verifyM3(audio_runtime, m3_CompileModule(audio_platformMod));
+	verifyM3(audio_runtime, m3_RunStart(audio_platformMod));
+
 	IM3Module cartMod;
 	verifyM3(main_runtime, m3_ParseModule(env, &cartMod, cartWasm, cartSize));
 	platformMod->memoryImported = true;
@@ -229,7 +243,17 @@ retro_load_game(const struct retro_game_info *game)
 	verifyM3(main_runtime, m3_CompileModule(cartMod));
 	verifyM3(main_runtime, m3_RunStart(cartMod));
 
+	IM3Module audio_cartMod;
+	verifyM3(audio_runtime, m3_ParseModule(env, &audio_cartMod, cartWasm, cartSize));
+	platformMod->memoryImported = true;
+	verifyM3(audio_runtime, m3_LoadModule(audio_runtime, audio_cartMod));
+	linkSystemFunctions(audio_runtime, audio_cartMod);
+	linkPlatformFunctions(audio_runtime, audio_cartMod, platformMod);
+	verifyM3(audio_runtime, m3_CompileModule(audio_cartMod));
+	verifyM3(audio_runtime, m3_RunStart(audio_cartMod));
+
 	verifyM3(main_runtime, m3_FindFunction(&upd, main_runtime, "upd"));
+	verifyM3(audio_runtime, m3_FindFunction(&sndGes, audio_runtime, "sndGes"));
 
 	return true;
 }
@@ -274,6 +298,8 @@ retro_run(void)
 	// for (int i = 0; i < 32; i++)
 	// 	audio[i] = (int16_t)memory[0x00050 + i];
 	// audio_cb(audio, 32);
+
+	verifyM3(audio_runtime, m3_CallV(sndGes));
 }
 
 void
@@ -332,6 +358,7 @@ retro_unserialize(const void *data, size_t size)
 void
 retro_deinit(void) {
 	m3_FreeRuntime(main_runtime);
+	m3_FreeRuntime(audio_runtime);
     m3_FreeEnvironment(env);
 }
 
