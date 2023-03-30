@@ -229,10 +229,26 @@ retro_load_game(const struct retro_game_info *game)
 	return true;
 }
 
+static const int retro_bind[] = {
+	[RETRO_DEVICE_ID_JOYPAD_UP] = 0,
+	[RETRO_DEVICE_ID_JOYPAD_DOWN] = 1<<1,
+	[RETRO_DEVICE_ID_JOYPAD_LEFT] = 1<<2,
+	[RETRO_DEVICE_ID_JOYPAD_RIGHT] = 1<<3,
+	[RETRO_DEVICE_ID_JOYPAD_A] = 1<<4,
+	[RETRO_DEVICE_ID_JOYPAD_B] = 1<<5,
+	[RETRO_DEVICE_ID_JOYPAD_X] = 1<<6,
+	[RETRO_DEVICE_ID_JOYPAD_Y] = 1<<7,
+};
+
 void
 retro_run(void)
 {
 	input_poll_cb();
+
+	memory[0x00044] = 0;
+	for (int i = 0; i < 8; i++)
+		if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, i))
+			memory[0x00044] ^= retro_bind[i];
 
 	verifyM3(runtime, m3_CallV(upd));
 
