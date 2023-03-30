@@ -278,7 +278,7 @@ retro_run(void)
 	input_poll_cb();
 
 	memory[0x00044] = 0;
-	for (int i = 0; i < 8; i++)
+	for (int i = 0; i <= RETRO_DEVICE_ID_JOYPAD_R3; i++)
 		if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, i))
 			memory[0x00044] ^= retro_bind[i];
 
