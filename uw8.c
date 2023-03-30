@@ -240,14 +240,11 @@ retro_run(void)
 
 	uint32_t pic[320*240];
 
-	for (int y = 0; y < 240; y++)
+	for (int i = 0; i < 320*240; i++)
 	{
-		for (int x = 0; x < 320; x++)
-		{
-			uint8_t px = memory[0x00078 + y*320 + x];
-			uint32_t c = palette[px];
-			pic[y*320 + x] = (c & 0xff00ff00) | ((c & 0xff) << 16) | ((c >> 16) & 0xff);
-		}
+		uint8_t px = memory[0x00078 + i];
+		uint32_t c = palette[px];
+		pic[i] = (c & 0xff00ff00) | ((c & 0xff) << 16) | ((c >> 16) & 0xff);
 	}
 
 	video_cb(&pic, 320, 240, 320*sizeof(uint32_t));
