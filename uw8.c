@@ -177,12 +177,12 @@ void linkPlatformFunctions(IM3Runtime runtime, IM3Module cartMod, IM3Module plat
 void*
 loadUw8(uint32_t* sizeOut, IM3Runtime runtime, IM3Function loadFunc, uint8_t* memory, const unsigned char* uw8, size_t uw8Size)
 {
-  memcpy(memory, uw8, uw8Size);
-  verifyM3(runtime, m3_CallV(loadFunc, (uint32_t)uw8Size));
-  verifyM3(runtime, m3_GetResultsV(loadFunc, sizeOut));
-  void* wasm = malloc(*sizeOut);
-  memcpy(wasm, memory, *sizeOut);
-  return wasm;
+	memcpy(memory, uw8, uw8Size);
+	verifyM3(runtime, m3_CallV(loadFunc, (uint32_t)uw8Size));
+	verifyM3(runtime, m3_GetResultsV(loadFunc, sizeOut));
+	void* wasm = malloc(*sizeOut);
+	memcpy(wasm, memory, *sizeOut);
+	return wasm;
 }
 
 bool
@@ -205,55 +205,55 @@ retro_load_game(const struct retro_game_info *game)
 	memory = m3_GetMemory(main_runtime, NULL, 0);
 	assert(memory != NULL);
 
-	IM3Module loaderMod;
-	verifyM3(main_runtime, m3_ParseModule(env, &loaderMod, loader, sizeof(loader)));
-	loaderMod->memoryImported = true;
-	verifyM3(main_runtime, m3_LoadModule(main_runtime, loaderMod));
-	verifyM3(main_runtime, m3_CompileModule(loaderMod));
-	verifyM3(main_runtime, m3_RunStart(loaderMod));
+	IM3Module loader_mod;
+	verifyM3(main_runtime, m3_ParseModule(env, &loader_mod, loader, sizeof(loader)));
+	loader_mod->memoryImported = true;
+	verifyM3(main_runtime, m3_LoadModule(main_runtime, loader_mod));
+	verifyM3(main_runtime, m3_CompileModule(loader_mod));
+	verifyM3(main_runtime, m3_RunStart(loader_mod));
 
-	IM3Function loadFunc;
-	verifyM3(main_runtime, m3_FindFunction(&loadFunc, main_runtime, "load_uw8"));
+	IM3Function load_func;
+	verifyM3(main_runtime, m3_FindFunction(&load_func, main_runtime, "load_uw8"));
 
-	uint32_t platformSize;
-	void* platformWasm = loadUw8(&platformSize, main_runtime, loadFunc, memory, platform, sizeof(platform));
+	uint32_t platform_size;
+	void* platform_wasm = loadUw8(&platform_size, main_runtime, load_func, memory, platform, sizeof(platform));
 
-	uint32_t cartSize;
-	void* cartWasm = loadUw8(&cartSize, main_runtime, loadFunc, memory, game->data, game->size);
+	uint32_t cart_size;
+	void* cart_wasm = loadUw8(&cart_size, main_runtime, load_func, memory, game->data, game->size);
 
-	IM3Module platformMod;
-	verifyM3(main_runtime, m3_ParseModule(env, &platformMod, platformWasm, platformSize));
-	platformMod->memoryImported = true;
-	verifyM3(main_runtime, m3_LoadModule(main_runtime, platformMod));
-	linkSystemFunctions(main_runtime, platformMod);
-	verifyM3(main_runtime, m3_CompileModule(platformMod));
-	verifyM3(main_runtime, m3_RunStart(platformMod));
+	IM3Module main_platform_mod;
+	verifyM3(main_runtime, m3_ParseModule(env, &main_platform_mod, platform_wasm, platform_size));
+	main_platform_mod->memoryImported = true;
+	verifyM3(main_runtime, m3_LoadModule(main_runtime, main_platform_mod));
+	linkSystemFunctions(main_runtime, main_platform_mod);
+	verifyM3(main_runtime, m3_CompileModule(main_platform_mod));
+	verifyM3(main_runtime, m3_RunStart(main_platform_mod));
 
-	IM3Module audio_platformMod;
-	verifyM3(main_runtime, m3_ParseModule(env, &audio_platformMod, platformWasm, platformSize));
-	audio_platformMod->memoryImported = true;
-	verifyM3(audio_runtime, m3_LoadModule(audio_runtime, audio_platformMod));
-	linkSystemFunctions(audio_runtime, audio_platformMod);
-	verifyM3(audio_runtime, m3_CompileModule(audio_platformMod));
-	verifyM3(audio_runtime, m3_RunStart(audio_platformMod));
+	IM3Module audio_platform_mod;
+	verifyM3(main_runtime, m3_ParseModule(env, &audio_platform_mod, platform_wasm, platform_size));
+	audio_platform_mod->memoryImported = true;
+	verifyM3(audio_runtime, m3_LoadModule(audio_runtime, audio_platform_mod));
+	linkSystemFunctions(audio_runtime, audio_platform_mod);
+	verifyM3(audio_runtime, m3_CompileModule(audio_platform_mod));
+	verifyM3(audio_runtime, m3_RunStart(audio_platform_mod));
 
-	IM3Module cartMod;
-	verifyM3(main_runtime, m3_ParseModule(env, &cartMod, cartWasm, cartSize));
-	platformMod->memoryImported = true;
-	verifyM3(main_runtime, m3_LoadModule(main_runtime, cartMod));
-	linkSystemFunctions(main_runtime, cartMod);
-	linkPlatformFunctions(main_runtime, cartMod, platformMod);
-	verifyM3(main_runtime, m3_CompileModule(cartMod));
-	verifyM3(main_runtime, m3_RunStart(cartMod));
+	IM3Module main_cart_mod;
+	verifyM3(main_runtime, m3_ParseModule(env, &main_cart_mod, cart_wasm, cart_size));
+	main_platform_mod->memoryImported = true;
+	verifyM3(main_runtime, m3_LoadModule(main_runtime, main_cart_mod));
+	linkSystemFunctions(main_runtime, main_cart_mod);
+	linkPlatformFunctions(main_runtime, main_cart_mod, main_platform_mod);
+	verifyM3(main_runtime, m3_CompileModule(main_cart_mod));
+	verifyM3(main_runtime, m3_RunStart(main_cart_mod));
 
-	IM3Module audio_cartMod;
-	verifyM3(audio_runtime, m3_ParseModule(env, &audio_cartMod, cartWasm, cartSize));
-	platformMod->memoryImported = true;
-	verifyM3(audio_runtime, m3_LoadModule(audio_runtime, audio_cartMod));
-	linkSystemFunctions(audio_runtime, audio_cartMod);
-	linkPlatformFunctions(audio_runtime, audio_cartMod, platformMod);
-	verifyM3(audio_runtime, m3_CompileModule(audio_cartMod));
-	verifyM3(audio_runtime, m3_RunStart(audio_cartMod));
+	IM3Module audio_cart_mod;
+	verifyM3(audio_runtime, m3_ParseModule(env, &audio_cart_mod, cart_wasm, cart_size));
+	main_platform_mod->memoryImported = true;
+	verifyM3(audio_runtime, m3_LoadModule(audio_runtime, audio_cart_mod));
+	linkSystemFunctions(audio_runtime, audio_cart_mod);
+	linkPlatformFunctions(audio_runtime, audio_cart_mod, main_platform_mod);
+	verifyM3(audio_runtime, m3_CompileModule(audio_cart_mod));
+	verifyM3(audio_runtime, m3_RunStart(audio_cart_mod));
 
 	verifyM3(main_runtime, m3_FindFunction(&upd, main_runtime, "upd"));
 	verifyM3(audio_runtime, m3_FindFunction(&sndGes, audio_runtime, "sndGes"));
