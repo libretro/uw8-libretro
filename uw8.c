@@ -236,17 +236,19 @@ retro_run(void)
 
 	verifyM3(runtime, m3_CallV(upd));
 
-	uint8_t* palette = &memory[0x13000];
+	uint32_t* palette = (uint32_t*)&memory[0x13000];
 
 	uint32_t pic[320*240];
 
 	for (int y = 0; y < 240; y++)
+	{
 		for (int x = 0; x < 320; x++)
 		{
 			uint8_t px = memory[0x00078 + y*320 + x];
 			uint32_t c = palette[px];
-			pic[y*320 + x] = c;
+			pic[y*320 + x] = (c & 0xff00ff00) | ((c & 0xff) << 16) | ((c >> 16) & 0xff);
 		}
+	}
 
 	video_cb(&pic, 320, 240, 320*sizeof(uint32_t));
 }
