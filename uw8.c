@@ -19,6 +19,7 @@ static retro_video_refresh_t video_cb;
 static retro_environment_t environ_cb;
 retro_audio_sample_t audio_cb;
 
+uint32_t frameNumber = 0;
 uint32_t sampleIndex = 0;
 IM3Environment env;
 static M3Runtime* main_runtime;
@@ -266,10 +267,10 @@ static const uint8_t retro_bind[] = {
 	[RETRO_DEVICE_ID_JOYPAD_DOWN] = 1<<1,
 	[RETRO_DEVICE_ID_JOYPAD_LEFT] = 1<<2,
 	[RETRO_DEVICE_ID_JOYPAD_RIGHT] = 1<<3,
-	[RETRO_DEVICE_ID_JOYPAD_A] = 1<<4,
-	[RETRO_DEVICE_ID_JOYPAD_B] = 1<<5,
-	[RETRO_DEVICE_ID_JOYPAD_X] = 1<<6,
-	[RETRO_DEVICE_ID_JOYPAD_Y] = 1<<7,
+	[RETRO_DEVICE_ID_JOYPAD_B] = 1<<4,
+	[RETRO_DEVICE_ID_JOYPAD_A] = 1<<5,
+	[RETRO_DEVICE_ID_JOYPAD_Y] = 1<<6,
+	[RETRO_DEVICE_ID_JOYPAD_X] = 1<<7,
 };
 
 void
@@ -312,6 +313,8 @@ retro_run(void)
 	}
 
 	verifyM3(main_runtime, m3_CallV(endFrame));
+
+	*(uint32_t*)&memory[0x00040] = frameNumber++ * 1000 / 60 + 8;
 }
 
 void
@@ -347,6 +350,9 @@ retro_set_audio_sample(retro_audio_sample_t cb)
 void
 retro_reset(void)
 {
+	frameNumber = 0;
+	sampleIndex = 0;
+	// TODO
 }
 
 size_t
@@ -369,10 +375,11 @@ retro_unserialize(const void *data, size_t size)
 
 void
 retro_deinit(void) {
+	frameNumber = 0;
 	sampleIndex = 0;
 	m3_FreeRuntime(main_runtime);
 	m3_FreeRuntime(audio_runtime);
-    m3_FreeEnvironment(env);
+	m3_FreeEnvironment(env);
 }
 
 unsigned
