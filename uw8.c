@@ -20,7 +20,8 @@ static retro_environment_t environ_cb;
 retro_audio_sample_batch_t audio_cb;
 
 IM3Environment env;
-static M3Runtime* runtime;
+static M3Runtime* main_runtime;
+static M3Runtime* audio_runtime;
 uint8_t* memory;
 static M3Function* upd;
 
@@ -118,32 +119,32 @@ linkSystemFunctions(IM3Runtime runtime, IM3Module mod)
 
 m3ApiRawFunction(platformTrampoline)
 {
-  IM3Function func = (IM3Function)_ctx->userdata;
-  uint32_t retCount = m3_GetRetCount(func);
-  uint32_t argCount = m3_GetArgCount(func);
-  const void* args[16];
-  for(uint32_t i = 0; i < argCount; ++i)
-    args[i] = &_sp[retCount + i];
-  verifyM3(runtime, m3_Call(func, m3_GetArgCount(func), args));
-  for(uint32_t i = 0; i < retCount; ++i)
-    args[i] = &_sp[i];
-  verifyM3(runtime, m3_GetResults(func, retCount, args));
-  m3ApiSuccess();
+	IM3Function func = (IM3Function)_ctx->userdata;
+	uint32_t retCount = m3_GetRetCount(func);
+	uint32_t argCount = m3_GetArgCount(func);
+	const void* args[16];
+	for(uint32_t i = 0; i < argCount; ++i)
+		args[i] = &_sp[retCount + i];
+	verifyM3(runtime, m3_Call(func, m3_GetArgCount(func), args));
+	for(uint32_t i = 0; i < retCount; ++i)
+		args[i] = &_sp[i];
+	verifyM3(runtime, m3_GetResults(func, retCount, args));
+	m3ApiSuccess();
 }
 
 void appendType(char* signature, M3ValueType type)
 {
-  if(type == c_m3Type_i32)
-    strcat(signature, "i");
-  else if(type == c_m3Type_i64)
-    strcat(signature, "l");
-  else if(type == c_m3Type_f32)
-    strcat(signature, "f");
-  else
-  {
-    fprintf(stderr, "Unsupported platform type %d\n", type);
-    exit(1);
-  }
+	if(type == c_m3Type_i32)
+		strcat(signature, "i");
+	else if(type == c_m3Type_i64)
+		strcat(signature, "l");
+	else if(type == c_m3Type_f32)
+		strcat(signature, "f");
+	else
+	{
+		fprintf(stderr, "Unsupported platform type %d\n", type);
+		exit(1);
+	}
 }
 
 void linkPlatformFunctions(IM3Runtime runtime, IM3Module cartMod, IM3Module platformMod)
@@ -188,47 +189,47 @@ retro_load_game(const struct retro_game_info *game)
 		return false;
 
 	env = m3_NewEnvironment();
-	runtime = m3_NewRuntime(env, 16384, NULL);
-	runtime->memory.maxPages = 4;
-	verifyM3(runtime, ResizeMemory(runtime, 4));
+	main_runtime = m3_NewRuntime(env, 16384, NULL);
+	main_runtime->memory.maxPages = 4;
+	verifyM3(main_runtime, ResizeMemory(main_runtime, 4));
 
-	memory = m3_GetMemory(runtime, NULL, 0);
+	memory = m3_GetMemory(main_runtime, NULL, 0);
 	assert(memory != NULL);
 
 	IM3Module loaderMod;
-	verifyM3(runtime, m3_ParseModule(env, &loaderMod, loader, sizeof(loader)));
+	verifyM3(main_runtime, m3_ParseModule(env, &loaderMod, loader, sizeof(loader)));
 	loaderMod->memoryImported = true;
-	verifyM3(runtime, m3_LoadModule(runtime, loaderMod));
-	verifyM3(runtime, m3_CompileModule(loaderMod));
-	verifyM3(runtime, m3_RunStart(loaderMod));
+	verifyM3(main_runtime, m3_LoadModule(main_runtime, loaderMod));
+	verifyM3(main_runtime, m3_CompileModule(loaderMod));
+	verifyM3(main_runtime, m3_RunStart(loaderMod));
 
 	IM3Function loadFunc;
-	verifyM3(runtime, m3_FindFunction(&loadFunc, runtime, "load_uw8"));
+	verifyM3(main_runtime, m3_FindFunction(&loadFunc, main_runtime, "load_uw8"));
 
 	uint32_t platformSize;
-	void* platformWasm = loadUw8(&platformSize, runtime, loadFunc, memory, platform, sizeof(platform));
+	void* platformWasm = loadUw8(&platformSize, main_runtime, loadFunc, memory, platform, sizeof(platform));
 
 	uint32_t cartSize;
-	void* cartWasm = loadUw8(&cartSize, runtime, loadFunc, memory, game->data, game->size);
+	void* cartWasm = loadUw8(&cartSize, main_runtime, loadFunc, memory, game->data, game->size);
 
 	IM3Module platformMod;
-	verifyM3(runtime, m3_ParseModule(env, &platformMod, platformWasm, platformSize));
+	verifyM3(main_runtime, m3_ParseModule(env, &platformMod, platformWasm, platformSize));
 	platformMod->memoryImported = true;
-	verifyM3(runtime, m3_LoadModule(runtime, platformMod));
-	linkSystemFunctions(runtime, platformMod);
-	verifyM3(runtime, m3_CompileModule(platformMod));
-	verifyM3(runtime, m3_RunStart(platformMod));
+	verifyM3(main_runtime, m3_LoadModule(main_runtime, platformMod));
+	linkSystemFunctions(main_runtime, platformMod);
+	verifyM3(main_runtime, m3_CompileModule(platformMod));
+	verifyM3(main_runtime, m3_RunStart(platformMod));
 
 	IM3Module cartMod;
-	verifyM3(runtime, m3_ParseModule(env, &cartMod, cartWasm, cartSize));
+	verifyM3(main_runtime, m3_ParseModule(env, &cartMod, cartWasm, cartSize));
 	platformMod->memoryImported = true;
-	verifyM3(runtime, m3_LoadModule(runtime, cartMod));
-	linkSystemFunctions(runtime, cartMod);
-	linkPlatformFunctions(runtime, cartMod, platformMod);
-	verifyM3(runtime, m3_CompileModule(cartMod));
-	verifyM3(runtime, m3_RunStart(cartMod));
+	verifyM3(main_runtime, m3_LoadModule(main_runtime, cartMod));
+	linkSystemFunctions(main_runtime, cartMod);
+	linkPlatformFunctions(main_runtime, cartMod, platformMod);
+	verifyM3(main_runtime, m3_CompileModule(cartMod));
+	verifyM3(main_runtime, m3_RunStart(cartMod));
 
-	verifyM3(runtime, m3_FindFunction(&upd, runtime, "upd"));
+	verifyM3(main_runtime, m3_FindFunction(&upd, main_runtime, "upd"));
 
 	return true;
 }
@@ -254,7 +255,7 @@ retro_run(void)
 		if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, i))
 			memory[0x00044] ^= retro_bind[i];
 
-	verifyM3(runtime, m3_CallV(upd));
+	verifyM3(main_runtime, m3_CallV(upd));
 
 	uint32_t* palette = (uint32_t*)&memory[0x13000];
 
@@ -268,6 +269,11 @@ retro_run(void)
 	}
 
 	video_cb(&pic, 320, 240, 320*sizeof(uint32_t));
+
+	// int16_t audio[32];
+	// for (int i = 0; i < 32; i++)
+	// 	audio[i] = (int16_t)memory[0x00050 + i];
+	// audio_cb(audio, 32);
 }
 
 void
@@ -323,12 +329,14 @@ retro_unserialize(const void *data, size_t size)
 	return false;
 }
 
-void retro_deinit(void) {
-	m3_FreeRuntime(runtime);
+void
+retro_deinit(void) {
+	m3_FreeRuntime(main_runtime);
     m3_FreeEnvironment(env);
 }
 
-unsigned retro_get_region(void) {
+unsigned
+retro_get_region(void) {
 	return RETRO_REGION_NTSC;
 }
 
