@@ -19,12 +19,10 @@ static retro_video_refresh_t video_cb;
 static retro_environment_t environ_cb;
 retro_audio_sample_batch_t audio_cb;
 
-static uint8_t *pic;
-static M3Environment* env;
+IM3Environment env;
 static M3Runtime* runtime;
-static M3Module* module;
+uint8_t* memory;
 static M3Function* upd;
-static M3Function* load_uw8;
 
 void
 retro_init(void)
@@ -184,17 +182,14 @@ retro_load_game(const struct retro_game_info *game)
 	enum retro_pixel_format fmt = RETRO_PIXEL_FORMAT_XRGB8888;
 	if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt))
 		return false;
-	
-	pic = malloc(320 * 240 * 256);
 
-	IM3Environment env = m3_NewEnvironment();
-	IM3Runtime runtime = m3_NewRuntime(env, 16384, NULL);
+	env = m3_NewEnvironment();
+	runtime = m3_NewRuntime(env, 16384, NULL);
 	runtime->memory.maxPages = 4;
 	verifyM3(runtime, ResizeMemory(runtime, 4));
 
-	uint8_t* memory = m3_GetMemory(runtime, NULL, 0);
+	memory = m3_GetMemory(runtime, NULL, 0);
 	assert(memory != NULL);
-
 
 	IM3Module loaderMod;
 	verifyM3(runtime, m3_ParseModule(env, &loaderMod, loader, sizeof(loader)));
@@ -240,6 +235,20 @@ retro_run(void)
 	input_poll_cb();
 
 	verifyM3(runtime, m3_CallV(upd));
+
+	uint8_t* palette = &memory[0x13000];
+
+	uint32_t pic[320*240];
+
+	for (int y = 0; y < 240; y++)
+		for (int x = 0; x < 320; x++)
+		{
+			uint8_t px = memory[0x00078 + y*320 + x];
+			uint32_t c = palette[px];
+			pic[y*320 + x] = c;
+		}
+
+	video_cb(&pic, 320, 240, 320*sizeof(uint32_t));
 }
 
 void
