@@ -262,7 +262,7 @@ retro_load_game(const struct retro_game_info *game)
 }
 
 static const uint8_t retro_bind[] = {
-	[RETRO_DEVICE_ID_JOYPAD_UP] = 0,
+	[RETRO_DEVICE_ID_JOYPAD_UP] = 1<<0,
 	[RETRO_DEVICE_ID_JOYPAD_DOWN] = 1<<1,
 	[RETRO_DEVICE_ID_JOYPAD_LEFT] = 1<<2,
 	[RETRO_DEVICE_ID_JOYPAD_RIGHT] = 1<<3,
