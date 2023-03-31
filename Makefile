@@ -1,4 +1,3 @@
-
 CFLAGS += -I. -Iwasm3/source
 LDFLAGS += -Lwasm3/source -lm3
 
@@ -721,6 +720,7 @@ endif
 
 OBJECTS := $(SOURCES_C:.c=.o)
 OBJECTS += $(RETROARCH_OBJECTS)
+OBJECTS += uw8.o
 OBJECTS += wasm3/source/libm3.a
 
 DEFINES := $(COREDEFINES) $(PLATFORM_DEFINES)
