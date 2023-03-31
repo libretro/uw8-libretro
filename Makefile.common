@@ -1,16 +1,20 @@
-SOURCES_C=wasm3/source/m3_api_libc.c \
-	wasm3/source/m3_api_wasi.c \
-	wasm3/source/m3_api_uvwasi.c \
-	wasm3/source/m3_api_meta_wasi.c \
-	wasm3/source/m3_api_tracer.c \
-	wasm3/source/m3_bind.c \
-	wasm3/source/m3_code.c \
-	wasm3/source/m3_compile.c \
-	wasm3/source/m3_core.c \
-	wasm3/source/m3_env.c \
-	wasm3/source/m3_exec.c \
-	wasm3/source/m3_function.c \
-	wasm3/source/m3_info.c \
-	wasm3/source/m3_module.c \
-	wasm3/source/m3_parse.c \
-	uw8.c
+INCFLAGS := -I. -Iwasm3/source
+
+SOURCES_C = \
+	$(CORE_DIR)/wasm3/source/m3_api_libc.c \
+	$(CORE_DIR)/wasm3/source/m3_api_wasi.c \
+	$(CORE_DIR)/wasm3/source/m3_api_uvwasi.c \
+	$(CORE_DIR)/wasm3/source/m3_api_meta_wasi.c \
+	$(CORE_DIR)/wasm3/source/m3_api_tracer.c \
+	$(CORE_DIR)/wasm3/source/m3_bind.c \
+	$(CORE_DIR)/wasm3/source/m3_code.c \
+	$(CORE_DIR)/wasm3/source/m3_compile.c \
+	$(CORE_DIR)/wasm3/source/m3_core.c \
+	$(CORE_DIR)/wasm3/source/m3_env.c \
+	$(CORE_DIR)/wasm3/source/m3_exec.c \
+	$(CORE_DIR)/wasm3/source/m3_function.c \
+	$(CORE_DIR)/wasm3/source/m3_info.c \
+	$(CORE_DIR)/wasm3/source/m3_module.c \
+	$(CORE_DIR)/wasm3/source/m3_parse.c \
+	$(CORE_DIR)/uw8.c
+
