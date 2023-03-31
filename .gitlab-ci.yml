@@ -11,6 +11,9 @@
     CORENAME: uw8
     MAKEFILE: Makefile
 
+variables:
+  GIT_SUBMODULE_STRATEGY: normal
+
 # Inclusion templates, required for the build to work
 include:
   ################################## DESKTOPS ################################
