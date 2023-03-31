@@ -1,4 +1,4 @@
-INCFLAGS := -I. -Iwasm3/source
+INCFLAGS := -I$(CORE_DIR) -I$(CORE_DIR)/wasm3/source
 
 SOURCES_C = \
 	$(CORE_DIR)/wasm3/source/m3_api_libc.c \
