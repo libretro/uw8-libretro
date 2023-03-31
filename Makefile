@@ -786,7 +786,7 @@ else
 endif
 
 wasm3/source/libm3.a:
-	cmake -S./wasm3 -B./wasm3
+	cmake -DCMAKE_C_FLAGS="-fPIC" -S./wasm3 -B./wasm3 
 	cmake --build ./wasm3
 
 %.o: %.c
