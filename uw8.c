@@ -358,19 +358,21 @@ retro_reset(void)
 size_t
 retro_serialize_size(void)
 {
-	return 0;
+	return 1 << 18;
 }
 
 bool
 retro_serialize(void *data, size_t size)
 {
-	return false;
+	memcpy(data, memory, 1 << 18);
+	return true;
 }
 
 bool
 retro_unserialize(const void *data, size_t size)
 {
-	return false;
+	memcpy(memory, data, 1 << 18);
+	return true;
 }
 
 void
