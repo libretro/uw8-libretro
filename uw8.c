@@ -39,9 +39,9 @@ retro_get_system_info(struct retro_system_info *info)
 {
 	memset(info, 0, sizeof(*info));
 	info->library_name = "uw8";
-	info->library_version = "1.0";
+	info->library_version = "0.2.2";
 	info->need_fullpath = false;
-	info->valid_extensions = "uw8";
+	info->valid_extensions = "uw8|wasm";
 }
 
 void
