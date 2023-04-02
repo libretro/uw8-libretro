@@ -97,6 +97,79 @@ m3ApiRawFunction(nopFunc)
 	m3ApiSuccess();
 }
 
+void uw8_rect(int32_t dx, int32_t dy, int32_t w, int32_t h, uint8_t c) {
+    uint32_t x = 0;
+    uint32_t y = 0;
+    int32_t x2 = dx;
+    int32_t y2 = dy;
+
+    while (y < h) {
+        int32_t o_x = x2;
+        int32_t o_y = y2;
+
+        if (o_x >= 0 && o_x < 320 && o_y >= 0 && o_y < 240)
+            memory[120 + o_x + o_y * 320] = c;
+
+        x++;
+        x2++;
+
+        if (x >= w) {
+            x = 0;
+            x2 = dx;
+            y++;
+            y2++;
+        }
+    }
+}
+
+m3ApiRawFunction(rect)
+{
+	m3ApiGetArg(int32_t, dx);
+	m3ApiGetArg(int32_t, dy);
+	m3ApiGetArg(int32_t, w);
+	m3ApiGetArg(int32_t, h);
+	m3ApiGetArg(uint8_t, c);
+	uw8_rect(dx, dy, w, h, c);
+	m3ApiSuccess();
+}
+
+void uw8_blit(const uint8_t* spr, int32_t dx, int32_t dy, uint8_t trans, bool flip) {
+    uint32_t x = 0;
+    uint32_t y = 0;
+    int32_t x2 = dx;
+    int32_t y2 = dy;
+
+    while (y < 16) {
+        uint8_t c = flip ? spr[15 - x + y * 16] : spr[x + y * 16];
+        int32_t o_x = x2;
+        int32_t o_y = y2;
+
+        if (c != trans and o_x >= 0 and o_x < 320 and o_y >= 0 and o_y < 240)
+            memory[120 + o_x + o_y * 320] = c;
+
+        x++;
+        x2++;
+
+        if (x >= 16) {
+            x = 0;
+            x2 = dx;
+            y++;
+            y2++;
+        }
+    }
+}
+
+m3ApiRawFunction(blit)
+{
+	m3ApiGetArgMem(const uint8_t*, spr);
+	m3ApiGetArg(int32_t, dx);
+	m3ApiGetArg(int32_t, dy);
+	m3ApiGetArg(uint8_t, trans);
+	m3ApiGetArg(bool, flip);
+	uw8_blit(spr, dx, dy, trans, flip);
+	m3ApiSuccess();
+}
+
 void
 linkSystemFunctions(IM3Runtime runtime, IM3Module mod)
 {
@@ -113,7 +186,10 @@ linkSystemFunctions(IM3Runtime runtime, IM3Module mod)
 
 	m3_LinkRawFunction(mod, "env", "logChar", "v(i)", nopFunc);
 
-	for(int i = 9; i < 64; ++i)
+	m3_LinkRawFunction(mod, "env", "rect", "v(iiiii)", rect);
+	m3_LinkRawFunction(mod, "env", "blit", "v(iiiii)", blit);
+
+	for(int i = 11; i < 64; ++i)
 	{
 		char name[128];
 		sprintf(name, "reserved%d", i);
