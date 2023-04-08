@@ -520,8 +520,8 @@ retro_unserialize(const void *data, size_t size)
 
 void
 retro_deinit(void) {
-    m3_FreeRuntime(audioState.runtime.runtime);
-    m3_FreeRuntime(gameState.runtime.runtime);
+	m3_FreeRuntime(audioState.runtime.runtime);
+	m3_FreeRuntime(gameState.runtime.runtime);
 	m3_FreeEnvironment(gameState.env);
 }
 
