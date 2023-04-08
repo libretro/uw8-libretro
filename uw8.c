@@ -19,15 +19,55 @@ static retro_video_refresh_t video_cb;
 static retro_environment_t environ_cb;
 retro_audio_sample_t audio_cb;
 
-uint32_t frameNumber = 0;
-uint32_t sampleIndex = 0;
-IM3Environment env;
-static M3Runtime* main_runtime;
-static M3Runtime* audio_runtime;
-uint8_t* memory;
-static M3Function* upd;
-static M3Function* sndGes;
-static M3Function* endFrame;
+typedef struct {
+	IM3Runtime runtime;
+	wasm_rt_memory_t memory_c;
+	Z_platform_instance_t platform_c;
+	IM3Module cart;
+} Uw8Runtime;
+
+typedef struct AudioState {
+	Uw8Runtime runtime;
+	uint8_t* memory;
+	IM3Function snd;
+	bool hasSnd;
+	uint8_t registers[32];
+	uint32_t sampleIndex;
+} AudioState;
+
+typedef struct GameState {
+	IM3Environment env;
+	Uw8Runtime runtime;
+	uint8_t* memory;
+	IM3Function updFunc;
+	bool hasUpdFunc;
+	uint32_t* pixels32;
+	uint32_t frameNumber;
+} GameState;
+
+AudioState audioState;
+GameState gameState;
+
+#define MATH1(name) \
+f32 Z_envZ_##name(struct Z_env_instance_t* i, f32 v) { \
+	return name##f(v); \
+}
+#define MATH2(name) \
+f32 Z_envZ_##name(struct Z_env_instance_t* i, f32 a, f32 b) { \
+	return name##f(a, b); \
+}
+MATH1(acos); MATH1(asin); MATH1(atan); MATH2(atan2);
+MATH1(cos); MATH1(sin); MATH1(tan);
+MATH1(exp); MATH2(pow);
+void Z_envZ_logChar(struct Z_env_instance_t* i, u32 c) {}
+
+u32 reservedGlobal;
+#define G_RESERVED(n) u32* Z_envZ_g_reserved##n(struct Z_env_instance_t* i) { return &reservedGlobal; }
+G_RESERVED(0); G_RESERVED(1); G_RESERVED(2); G_RESERVED(3);
+G_RESERVED(4); G_RESERVED(5); G_RESERVED(6); G_RESERVED(7);
+G_RESERVED(8); G_RESERVED(9); G_RESERVED(10); G_RESERVED(11);
+G_RESERVED(12); G_RESERVED(13); G_RESERVED(14); G_RESERVED(15);
+wasm_rt_memory_t* Z_envZ_memory(struct Z_env_instance_t* i) { return (wasm_rt_memory_t*)i; }
 
 void
 retro_init(void)
@@ -121,68 +161,211 @@ linkSystemFunctions(IM3Runtime runtime, IM3Module mod)
 	}
 }
 
-m3ApiRawFunction(platformTrampoline)
-{
-	IM3Function func = (IM3Function)_ctx->userdata;
-	uint32_t retCount = m3_GetRetCount(func);
-	uint32_t argCount = m3_GetArgCount(func);
-	const void* args[16];
-	for(uint32_t i = 0; i < argCount; ++i)
-		args[i] = &_sp[retCount + i];
-	verifyM3(runtime, m3_Call(func, m3_GetArgCount(func), args));
-	for(uint32_t i = 0; i < retCount; ++i)
-		args[i] = &_sp[i];
-	verifyM3(runtime, m3_GetResults(func, retCount, args));
+m3ApiRawFunction(callFmod) {
+	*(f32*)&_sp[0] = Z_platformZ_fmod((Z_platform_instance_t*)_ctx->userdata, *(f32*)&_sp[1], *(f32*)&_sp[2]);
 	m3ApiSuccess();
 }
 
-void appendType(char* signature, M3ValueType type)
-{
-	if(type == c_m3Type_i32)
-		strcat(signature, "i");
-	else if(type == c_m3Type_i64)
-		strcat(signature, "l");
-	else if(type == c_m3Type_f32)
-		strcat(signature, "f");
-	else
-	{
-		fprintf(stderr, "Unsupported platform type %d\n", type);
-		exit(1);
-	}
+m3ApiRawFunction(callRandom) {
+	_sp[0] = Z_platformZ_random((Z_platform_instance_t*)_ctx->userdata);
+	m3ApiSuccess();
 }
 
-void linkPlatformFunctions(IM3Runtime runtime, IM3Module cartMod, IM3Module platformMod)
-{
-	for(u32 functionIndex = 0; functionIndex < platformMod->numFunctions; ++functionIndex)
-	{
-		M3Function function = platformMod->functions[functionIndex];
-		if(function.export_name != NULL)
-		{
-			IM3Function iFunc;
-			verifyM3(runtime, m3_FindFunction(&iFunc, runtime, function.export_name));
-			char signature[128] = { 0 };
-			if(m3_GetRetCount(iFunc) > 0)
-				appendType(signature, m3_GetRetType(iFunc, 0));
-			else
-				strcat(signature, "v");
-			strcat(signature, "(");
-			for(uint32_t i = 0; i < m3_GetArgCount(iFunc); ++i)
-				appendType(signature, m3_GetArgType(iFunc, i));
-			strcat(signature, ")");
-			m3_LinkRawFunctionEx(cartMod, "env", function.export_name, signature, platformTrampoline, iFunc);
-		}
+m3ApiRawFunction(callRandomf) {
+	*(f32*)&_sp[0] = Z_platformZ_randomf((Z_platform_instance_t*)_ctx->userdata);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callRandomSeed) {
+	Z_platformZ_randomSeed((Z_platform_instance_t*)_ctx->userdata, _sp[0]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callCls) {
+	Z_platformZ_cls((Z_platform_instance_t*)_ctx->userdata, _sp[0]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callSetPixel) {
+	Z_platformZ_setPixel((Z_platform_instance_t*)_ctx->userdata, _sp[0], _sp[1], _sp[2]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callGetPixel) {
+	_sp[0] = Z_platformZ_getPixel((Z_platform_instance_t*)_ctx->userdata, _sp[1], _sp[2]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callHline) {
+	Z_platformZ_hline((Z_platform_instance_t*)_ctx->userdata, _sp[0], _sp[1], _sp[2], _sp[3]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callRectangle) {
+	Z_platformZ_rectangle((Z_platform_instance_t*)_ctx->userdata, *(f32*)&_sp[0], *(f32*)&_sp[1], *(f32*)&_sp[2], *(f32*)&_sp[3],_sp[4]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callCircle) {
+	Z_platformZ_circle((Z_platform_instance_t*)_ctx->userdata, *(f32*)&_sp[0], *(f32*)&_sp[1], *(f32*)&_sp[2], _sp[3]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callRectangleOutline) {
+	Z_platformZ_rectangleOutline((Z_platform_instance_t*)_ctx->userdata, *(f32*)&_sp[0], *(f32*)&_sp[1], *(f32*)&_sp[2], *(f32*)&_sp[3],_sp[4]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callCircleOutline) {
+	Z_platformZ_circleOutline((Z_platform_instance_t*)_ctx->userdata, *(f32*)&_sp[0], *(f32*)&_sp[1], *(f32*)&_sp[2], _sp[3]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callLine) {
+	Z_platformZ_line((Z_platform_instance_t*)_ctx->userdata, *(f32*)&_sp[0], *(f32*)&_sp[1], *(f32*)&_sp[2], *(f32*)&_sp[3],_sp[4]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callBlitSprite) {
+	Z_platformZ_blitSprite((Z_platform_instance_t*)_ctx->userdata, _sp[0], _sp[1], _sp[2], _sp[3], _sp[4]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callGrabSprite) {
+	Z_platformZ_grabSprite((Z_platform_instance_t*)_ctx->userdata, _sp[0], _sp[1], _sp[2], _sp[3], _sp[4]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callIsButtonPressed) {
+	_sp[0] = Z_platformZ_isButtonPressed((Z_platform_instance_t*)_ctx->userdata, _sp[1]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callIsButtonTriggered) {
+	_sp[0] = Z_platformZ_isButtonTriggered((Z_platform_instance_t*)_ctx->userdata, _sp[1]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callTime) {
+	*(f32*)&_sp[0] = Z_platformZ_time((Z_platform_instance_t*)_ctx->userdata);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callPrintChar) {
+	Z_platformZ_printChar((Z_platform_instance_t*)_ctx->userdata, _sp[0]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callPrintString) {
+	Z_platformZ_printString((Z_platform_instance_t*)_ctx->userdata, _sp[0]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callPrintInt) {
+	Z_platformZ_printInt((Z_platform_instance_t*)_ctx->userdata, _sp[0]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callSetTextColor) {
+	Z_platformZ_setTextColor((Z_platform_instance_t*)_ctx->userdata, _sp[0]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callSetBackgroundColor) {
+	Z_platformZ_setBackgroundColor((Z_platform_instance_t*)_ctx->userdata, _sp[0]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callSetCursorPosition) {
+	Z_platformZ_setCursorPosition((Z_platform_instance_t*)_ctx->userdata, _sp[0], _sp[1]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callSndGes) {
+	*(f32*)&_sp[0] = Z_platformZ_sndGes((Z_platform_instance_t*)_ctx->userdata, _sp[1]);
+	m3ApiSuccess();
+}
+
+m3ApiRawFunction(callPlayNote) {
+	Z_platformZ_playNote((Z_platform_instance_t*)_ctx->userdata, _sp[0], _sp[1]);
+	m3ApiSuccess();
+}
+
+struct {
+	const char* name;
+	const char* signature;
+	M3RawCall function;
+} cPlatformFunctions[] = {
+	{ "fmod", "f(ff)", callFmod },
+	{ "random", "i()", callRandom },
+	{ "randomf", "f()", callRandomf },
+	{ "randomSeed", "v(i)", callRandomSeed },
+	{ "cls", "v(i)", callCls },
+	{ "setPixel", "v(iii)", callSetPixel },
+	{ "getPidel", "i(ii)", callGetPixel },
+	{ "hline", "v(iiii)", callHline },
+	{ "rectangle", "v(ffffi)", callRectangle },
+	{ "circle", "v(fffi)", callCircle },
+	{ "rectangleOutline", "v(ffffi)", callRectangleOutline },
+	{ "circleOutline", "v(fffi)", callCircleOutline },
+	{ "line", "v(ffffi)", callLine },
+	{ "blitSprite", "v(iiiii)", callBlitSprite },
+	{ "grabSprite", "v(iiiii)", callGrabSprite },
+	{ "isButtonPressed", "i(i)", callIsButtonPressed },
+	{ "isButtonTriggered", "i(i)", callIsButtonTriggered},
+	{ "time", "f()", callTime },
+	{ "printChar", "v(i)", callPrintChar },
+	{ "printString", "v(i)", callPrintString },
+	{ "printInt", "v(i)", callPrintInt },
+	{ "setTextColor", "v(i)", callSetTextColor },
+	{ "setBackgroundColor", "v(i)", callSetBackgroundColor },
+	{ "setCursorPosition", "v(ii)", callSetCursorPosition },
+	{ "playNote", "v(ii)", callPlayNote },
+	{ "sndGes", "f(i)", callSndGes }
+};
+
+void
+linkPlatformFunctions(IM3Runtime runtime, IM3Module cartMod, Z_platform_instance_t* platformInstance) {
+	for(int i = 0; i * sizeof(cPlatformFunctions[0]) < sizeof(cPlatformFunctions); ++i) {
+		m3_LinkRawFunctionEx(cartMod, "env", cPlatformFunctions[i].name, cPlatformFunctions[i].signature, cPlatformFunctions[i].function, platformInstance);
 	}
 }
 
 void*
-loadUw8(uint32_t* sizeOut, IM3Runtime runtime, IM3Function loadFunc, uint8_t* memory, const unsigned char* uw8, size_t uw8Size)
-{
-	memcpy(memory, uw8, uw8Size);
-	verifyM3(runtime, m3_CallV(loadFunc, (uint32_t)uw8Size));
-	verifyM3(runtime, m3_GetResultsV(loadFunc, sizeOut));
+loadUw8(uint32_t* sizeOut, IM3Runtime runtime, const unsigned char* uw8, size_t uw8Size) {
+	wasm_rt_memory_t memory;
+	memory.data = m3_GetMemory(runtime, NULL, 0);
+	memory.max_pages = memory.pages = 4;
+	memory.size = 4 * 65536;
+	Z_loader_instance_t loader;
+	Z_loader_instantiate(&loader, (struct Z_env_instance_t*)&memory);
+	
+	memcpy(memory.data, uw8, uw8Size);
+	*sizeOut = Z_loaderZ_load_uw8(&loader, (uint32_t)uw8Size);
 	void* wasm = malloc(*sizeOut);
-	memcpy(wasm, memory, *sizeOut);
+	memcpy(wasm, memory.data, *sizeOut);
 	return wasm;
+}
+
+void
+initRuntime(Uw8Runtime* runtime, IM3Environment env, void* cart, size_t cartSize) {
+	runtime->runtime = m3_NewRuntime(env, 65536, NULL);
+	runtime->runtime->memory.maxPages = 4;
+	verifyM3(runtime->runtime, ResizeMemory(runtime->runtime, 4));
+
+	runtime->memory_c.data = m3_GetMemory(runtime->runtime, NULL, 0);
+	runtime->memory_c.max_pages = 4;
+	runtime->memory_c.pages = 4;
+	runtime->memory_c.size = 256*1024;
+	Z_platform_instantiate(&runtime->platform_c, (struct Z_env_instance_t*)&runtime->memory_c);
+
+	verifyM3(runtime->runtime, m3_ParseModule(env, &runtime->cart, cart, cartSize));
+	runtime->cart->memoryImported = true;
+	verifyM3(runtime->runtime, m3_LoadModule(runtime->runtime, runtime->cart));
+	linkSystemFunctions(runtime->runtime, runtime->cart);
+	linkPlatformFunctions(runtime->runtime, runtime->cart, &runtime->platform_c);
+	verifyM3(runtime->runtime, m3_CompileModule(runtime->cart));
+	verifyM3(runtime->runtime, m3_RunStart(runtime->cart));
 }
 
 bool
@@ -192,72 +375,34 @@ retro_load_game(const struct retro_game_info *game)
 	if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt))
 		return false;
 
-	env = m3_NewEnvironment();
+	gameState.pixels32 = malloc(320*240*4);
 
-	main_runtime = m3_NewRuntime(env, 16384, NULL);
-	main_runtime->memory.maxPages = 4;
-	verifyM3(main_runtime, ResizeMemory(main_runtime, 4));
+	wasm_rt_init();
+	Z_loader_init_module();
+	Z_platform_init_module();
 
-	audio_runtime = m3_NewRuntime(env, 16384, NULL);
-	audio_runtime->memory.maxPages = 4;
-	verifyM3(audio_runtime, ResizeMemory(audio_runtime, 4));
+	gameState.env = m3_NewEnvironment();
+	IM3Runtime loaderRuntime = m3_NewRuntime(gameState.env, 65536, NULL);
+	loaderRuntime->memory.maxPages = 4;
+	verifyM3(loaderRuntime, ResizeMemory(loaderRuntime, 4));
 
-	memory = m3_GetMemory(main_runtime, NULL, 0);
-	assert(memory != NULL);
+	uint32_t cartSize;
+	void* cartWasm = loadUw8(&cartSize, loaderRuntime, game->data, game->size);
 
-	IM3Module loader_mod;
-	verifyM3(main_runtime, m3_ParseModule(env, &loader_mod, loader, sizeof(loader)));
-	loader_mod->memoryImported = true;
-	verifyM3(main_runtime, m3_LoadModule(main_runtime, loader_mod));
-	verifyM3(main_runtime, m3_CompileModule(loader_mod));
-	verifyM3(main_runtime, m3_RunStart(loader_mod));
+	m3_FreeRuntime(loaderRuntime);
 
-	IM3Function load_func;
-	verifyM3(main_runtime, m3_FindFunction(&load_func, main_runtime, "load_uw8"));
+    initRuntime(&gameState.runtime, gameState.env, cartWasm, cartSize);
 
-	uint32_t platform_size;
-	void* platform_wasm = loadUw8(&platform_size, main_runtime, load_func, memory, platform, sizeof(platform));
+    gameState.memory = m3_GetMemory(gameState.runtime.runtime, NULL, 0);
+    assert(gameState.memory != NULL);
 
-	uint32_t cart_size;
-	void* cart_wasm = loadUw8(&cart_size, main_runtime, load_func, memory, game->data, game->size);
+    gameState.hasUpdFunc = m3_FindFunction(&gameState.updFunc, gameState.runtime.runtime, "upd") == NULL;
 
-	IM3Module main_platform_mod;
-	verifyM3(main_runtime, m3_ParseModule(env, &main_platform_mod, platform_wasm, platform_size));
-	main_platform_mod->memoryImported = true;
-	verifyM3(main_runtime, m3_LoadModule(main_runtime, main_platform_mod));
-	linkSystemFunctions(main_runtime, main_platform_mod);
-	verifyM3(main_runtime, m3_CompileModule(main_platform_mod));
-	verifyM3(main_runtime, m3_RunStart(main_platform_mod));
-
-	IM3Module audio_platform_mod;
-	verifyM3(main_runtime, m3_ParseModule(env, &audio_platform_mod, platform_wasm, platform_size));
-	audio_platform_mod->memoryImported = true;
-	verifyM3(audio_runtime, m3_LoadModule(audio_runtime, audio_platform_mod));
-	linkSystemFunctions(audio_runtime, audio_platform_mod);
-	verifyM3(audio_runtime, m3_CompileModule(audio_platform_mod));
-	verifyM3(audio_runtime, m3_RunStart(audio_platform_mod));
-
-	IM3Module main_cart_mod;
-	verifyM3(main_runtime, m3_ParseModule(env, &main_cart_mod, cart_wasm, cart_size));
-	main_platform_mod->memoryImported = true;
-	verifyM3(main_runtime, m3_LoadModule(main_runtime, main_cart_mod));
-	linkSystemFunctions(main_runtime, main_cart_mod);
-	linkPlatformFunctions(main_runtime, main_cart_mod, main_platform_mod);
-	verifyM3(main_runtime, m3_CompileModule(main_cart_mod));
-	verifyM3(main_runtime, m3_RunStart(main_cart_mod));
-
-	IM3Module audio_cart_mod;
-	verifyM3(audio_runtime, m3_ParseModule(env, &audio_cart_mod, cart_wasm, cart_size));
-	main_platform_mod->memoryImported = true;
-	verifyM3(audio_runtime, m3_LoadModule(audio_runtime, audio_cart_mod));
-	linkSystemFunctions(audio_runtime, audio_cart_mod);
-	linkPlatformFunctions(audio_runtime, audio_cart_mod, main_platform_mod);
-	verifyM3(audio_runtime, m3_CompileModule(audio_cart_mod));
-	verifyM3(audio_runtime, m3_RunStart(audio_cart_mod));
-
-	verifyM3(main_runtime, m3_FindFunction(&upd, main_runtime, "upd"));
-	verifyM3(audio_runtime, m3_FindFunction(&sndGes, audio_runtime, "sndGes"));
-	verifyM3(main_runtime, m3_FindFunction(&endFrame, main_runtime, "endFrame"));
+    initRuntime(&audioState.runtime, gameState.env, cartWasm, cartSize);
+    audioState.memory = m3_GetMemory(audioState.runtime.runtime, NULL, 0);
+    audioState.hasSnd = m3_FindFunction(&audioState.snd, audioState.runtime.runtime, "snd") == NULL;
+    memcpy(audioState.registers, audioState.memory + 0x50, 32);
+    audioState.sampleIndex = 0;
 
 	return true;
 }
@@ -278,43 +423,43 @@ retro_run(void)
 {
 	input_poll_cb();
 
-	memory[0x00044] = 0;
+	gameState.memory[0x00044] = 0;
 	for (int i = 0; i <= RETRO_DEVICE_ID_JOYPAD_R3; i++)
 		if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, i))
-			memory[0x00044] ^= retro_bind[i];
+			gameState.memory[0x00044] ^= retro_bind[i];
 
-	verifyM3(main_runtime, m3_CallV(upd));
+	if(gameState.hasUpdFunc) {
+		verifyM3(gameState.runtime.runtime, m3_CallV(gameState.updFunc));
+	}
+	memcpy(audioState.registers, gameState.memory + 0x50, 32);
 
-	uint32_t* palette = (uint32_t*)&memory[0x13000];
-	uint8_t* pixels = memory + 0x00078;
-	uint32_t pic[320*240];
+	Z_platformZ_endFrame(&gameState.runtime.platform_c);
 
-	for (int i = 0; i < 320*240; i++)
-	{
+	uint32_t* palette = (uint32_t*)(gameState.memory + 0x13000);
+	uint8_t* pixels = gameState.memory + 120;
+	for(uint32_t i = 0; i < 320*240; ++i) {
 		uint32_t c = palette[pixels[i]];
-		pic[i] = (c & 0xff00ff00) | ((c & 0xff) << 16) | ((c >> 16) & 0xff);
+		gameState.pixels32[i] = (c & 0xff00ff00) | ((c & 0xff) << 16) | ((c >> 16) & 0xff);
 	}
 
-	video_cb(&pic, 320, 240, 320*sizeof(uint32_t));
+	video_cb(gameState.pixels32, 320, 240, 320*sizeof(uint32_t));
 
-	uint8_t* audio_memory = m3_GetMemory(audio_runtime, NULL, 0);
-	memcpy(audio_memory + 0x00050, memory + 0x00050, 32);
-
+	memcpy(audioState.memory + 0x50,audioState.registers, 32);
 	for(int i = 0; i < 44100/60; ++i) {
-		float_t left = 0;
-		verifyM3(audio_runtime, m3_CallV(sndGes, ++sampleIndex));
-		verifyM3(audio_runtime, m3_GetResultsV(sndGes, &left));
-
-		float_t right = 0;
-		verifyM3(audio_runtime, m3_CallV(sndGes, ++sampleIndex));
-		verifyM3(audio_runtime, m3_GetResultsV(sndGes, &right));
-
+		float_t left, right;
+		if(audioState.hasSnd) {
+			m3_CallV(audioState.snd, audioState.sampleIndex++);
+			m3_GetResultsV(audioState.snd, &left);
+			m3_CallV(audioState.snd, audioState.sampleIndex++);
+			m3_GetResultsV(audioState.snd, &right);
+		} else {
+			left = Z_platformZ_sndGes(&audioState.runtime.platform_c, audioState.sampleIndex++);
+			right = Z_platformZ_sndGes(&audioState.runtime.platform_c, audioState.sampleIndex++);
+		}
 		audio_cb((int16_t)(left * 32767.0f), (int16_t)(right * 32767.0f));
 	}
 
-	verifyM3(main_runtime, m3_CallV(endFrame));
-
-	*(uint32_t*)&memory[0x00040] = frameNumber++ * 1000 / 60 + 8;
+	*(uint32_t*)&gameState.memory[0x00040] = gameState.frameNumber++ * 1000 / 60 + 8;
 }
 
 void
@@ -350,8 +495,6 @@ retro_set_audio_sample(retro_audio_sample_t cb)
 void
 retro_reset(void)
 {
-	frameNumber = 0;
-	sampleIndex = 0;
 	// TODO
 }
 
@@ -364,24 +507,22 @@ retro_serialize_size(void)
 bool
 retro_serialize(void *data, size_t size)
 {
-	memcpy(data, memory, 1 << 18);
+	memcpy(data, gameState.memory, 1 << 18);
 	return true;
 }
 
 bool
 retro_unserialize(const void *data, size_t size)
 {
-	memcpy(memory, data, 1 << 18);
+	memcpy(gameState.memory, data, 1 << 18);
 	return true;
 }
 
 void
 retro_deinit(void) {
-	frameNumber = 0;
-	sampleIndex = 0;
-	m3_FreeRuntime(main_runtime);
-	m3_FreeRuntime(audio_runtime);
-	m3_FreeEnvironment(env);
+    m3_FreeRuntime(audioState.runtime.runtime);
+    m3_FreeRuntime(gameState.runtime.runtime);
+	m3_FreeEnvironment(gameState.env);
 }
 
 unsigned
