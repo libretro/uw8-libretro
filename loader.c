@@ -3,7 +3,7 @@
 #include <math.h>
 #include <stddef.h>
 #include <string.h>
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) || defined(_WIN32)
 #include <intrin.h>
 #include <malloc.h>
 #define alloca _alloca
