@@ -253,7 +253,7 @@ static void os_cleanup_signal_handler(void) {
 
 #endif
 
-#else
+#elif defined(__linux__) || defined(__APPLE__) || defined(__ANDROID_API__)
 static void* os_mmap(size_t size) {
   int map_prot = PROT_NONE;
   int map_flags = MAP_ANONYMOUS | MAP_PRIVATE;
