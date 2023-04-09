@@ -33,7 +33,7 @@
 
 #ifdef _WIN32
 #include <windows.h>
-#else
+#elif defined(__linux__) || defined(__APPLE__) || defined(__ANDROID_API__)
 #include <sys/mman.h>
 #endif
 
