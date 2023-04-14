@@ -99,9 +99,9 @@ include:
   - project: 'libretro-infrastructure/ci-templates'
     file: '/wiiu-static.yml'
 
-  # Nintendo Switch
-  - project: 'libretro-infrastructure/ci-templates'
-    file: '/libnx-static.yml'
+# # Nintendo Switch
+# - project: 'libretro-infrastructure/ci-templates'
+#   file: '/libnx-static.yml'
 
   # OpenDingux
   - project: 'libretro-infrastructure/ci-templates'
