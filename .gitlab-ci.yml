@@ -247,11 +247,11 @@ libretro-build-ps2:
     - .libretro-ps2-static-retroarch-master
     - .core-defs
     
-# PlayStation3
-libretro-build-psl1ght:
-  extends:
-    - .libretro-psl1ght-static-retroarch-master
-    - .core-defs
+# # PlayStation3
+# libretro-build-psl1ght:
+#   extends:
+#     - .libretro-psl1ght-static-retroarch-master
+#     - .core-defs
 
 # Nintendo 3DS
 libretro-build-ctr:
@@ -277,11 +277,11 @@ libretro-build-wiiu:
     - .libretro-wiiu-static-retroarch-master
     - .core-defs
 
-# Nintendo Switch
-libretro-build-libnx-aarch64:
-  extends:
-    - .libretro-libnx-static-retroarch-master
-    - .core-defs
+# # Nintendo Switch
+# libretro-build-libnx-aarch64:
+#   extends:
+#     - .libretro-libnx-static-retroarch-master
+#     - .core-defs
 
 # # OpenDingux
 # libretro-build-dingux-mips32:

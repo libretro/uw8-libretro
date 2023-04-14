@@ -2,10 +2,6 @@ INCFLAGS := -I$(CORE_DIR) -I$(CORE_DIR)/wasm3/source
 
 SOURCES_C = \
 	$(CORE_DIR)/wasm3/source/m3_api_libc.c \
-	$(CORE_DIR)/wasm3/source/m3_api_wasi.c \
-	$(CORE_DIR)/wasm3/source/m3_api_uvwasi.c \
-	$(CORE_DIR)/wasm3/source/m3_api_meta_wasi.c \
-	$(CORE_DIR)/wasm3/source/m3_api_tracer.c \
 	$(CORE_DIR)/wasm3/source/m3_bind.c \
 	$(CORE_DIR)/wasm3/source/m3_code.c \
 	$(CORE_DIR)/wasm3/source/m3_compile.c \
@@ -16,5 +12,7 @@ SOURCES_C = \
 	$(CORE_DIR)/wasm3/source/m3_info.c \
 	$(CORE_DIR)/wasm3/source/m3_module.c \
 	$(CORE_DIR)/wasm3/source/m3_parse.c \
-	$(CORE_DIR)/uw8.c
-
+	$(CORE_DIR)/uw8.c \
+	$(CORE_DIR)/loader.c \
+	$(CORE_DIR)/platform.c \
+	$(CORE_DIR)/wasm-rt-impl.c
