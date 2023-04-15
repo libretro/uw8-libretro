@@ -423,10 +423,12 @@ retro_run(void)
 {
 	input_poll_cb();
 
-	gameState.memory[0x00044] = 0;
-	for (int i = 0; i <= RETRO_DEVICE_ID_JOYPAD_R3; i++)
-		if (input_state_cb(0, RETRO_DEVICE_JOYPAD, 0, i))
-			gameState.memory[0x00044] ^= retro_bind[i];
+	for(int p = 0; p < 4; p++) {
+		gameState.memory[0x00044+p] = 0;
+		for(int i = 0; i <= RETRO_DEVICE_ID_JOYPAD_R3; i++)
+			if(input_state_cb(p, RETRO_DEVICE_JOYPAD, 0, i))
+				gameState.memory[0x00044+p] ^= retro_bind[i];
+	}
 
 	if(gameState.hasUpdFunc) {
 		verifyM3(gameState.runtime.runtime, m3_CallV(gameState.updFunc));
