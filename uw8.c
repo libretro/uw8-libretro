@@ -39,6 +39,7 @@ typedef struct GameState {
 	IM3Environment env;
 	Uw8Runtime runtime;
 	uint8_t* memory;
+	uint8_t* initialMemory; // used for reset
 	IM3Function updFunc;
 	bool hasUpdFunc;
 	uint32_t* pixels32;
@@ -391,18 +392,21 @@ retro_load_game(const struct retro_game_info *game)
 
 	m3_FreeRuntime(loaderRuntime);
 
-    initRuntime(&gameState.runtime, gameState.env, cartWasm, cartSize);
+	initRuntime(&gameState.runtime, gameState.env, cartWasm, cartSize);
 
-    gameState.memory = m3_GetMemory(gameState.runtime.runtime, NULL, 0);
-    assert(gameState.memory != NULL);
+	gameState.memory = m3_GetMemory(gameState.runtime.runtime, NULL, 0);
+	assert(gameState.memory != NULL);
 
-    gameState.hasUpdFunc = m3_FindFunction(&gameState.updFunc, gameState.runtime.runtime, "upd") == NULL;
+	gameState.hasUpdFunc = m3_FindFunction(&gameState.updFunc, gameState.runtime.runtime, "upd") == NULL;
 
-    initRuntime(&audioState.runtime, gameState.env, cartWasm, cartSize);
-    audioState.memory = m3_GetMemory(audioState.runtime.runtime, NULL, 0);
-    audioState.hasSnd = m3_FindFunction(&audioState.snd, audioState.runtime.runtime, "snd") == NULL;
-    memcpy(audioState.registers, audioState.memory + 0x50, 32);
-    audioState.sampleIndex = 0;
+	initRuntime(&audioState.runtime, gameState.env, cartWasm, cartSize);
+	audioState.memory = m3_GetMemory(audioState.runtime.runtime, NULL, 0);
+	audioState.hasSnd = m3_FindFunction(&audioState.snd, audioState.runtime.runtime, "snd") == NULL;
+	memcpy(audioState.registers, audioState.memory + 0x50, 32);
+	audioState.sampleIndex = 0;
+
+	gameState.initialMemory = malloc(1 << 18);
+	memcpy(gameState.initialMemory, gameState.memory, 1 << 18);
 
 	return true;
 }
@@ -446,7 +450,7 @@ retro_run(void)
 
 	video_cb(gameState.pixels32, 320, 240, 320*sizeof(uint32_t));
 
-	memcpy(audioState.memory + 0x50,audioState.registers, 32);
+	memcpy(audioState.memory + 0x50, audioState.registers, 32);
 	for(int i = 0; i < 44100/60; ++i) {
 		float_t left, right;
 		if(audioState.hasSnd) {
@@ -497,7 +501,9 @@ retro_set_audio_sample(retro_audio_sample_t cb)
 void
 retro_reset(void)
 {
-	// TODO
+	memcpy(gameState.memory, gameState.initialMemory, 1 << 18);
+	audioState.sampleIndex = 0;
+	gameState.frameNumber = 0;
 }
 
 size_t
@@ -525,6 +531,8 @@ retro_deinit(void) {
 	m3_FreeRuntime(audioState.runtime.runtime);
 	m3_FreeRuntime(gameState.runtime.runtime);
 	m3_FreeEnvironment(gameState.env);
+	free(gameState.initialMemory);
+	free(gameState.pixels32);
 }
 
 unsigned
