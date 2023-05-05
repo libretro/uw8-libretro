@@ -46,8 +46,8 @@ typedef struct GameState {
 	uint32_t frameNumber;
 } GameState;
 
-AudioState audioState;
-GameState gameState;
+AudioState* audioState;
+GameState* gameState;
 
 #define MATH1(name) \
 f32 Z_envZ_##name(struct Z_env_instance_t* i, f32 v) { \
@@ -73,6 +73,8 @@ wasm_rt_memory_t* Z_envZ_memory(struct Z_env_instance_t* i) { return (wasm_rt_me
 void
 retro_init(void)
 {
+	audioState = malloc(sizeof(AudioState));
+	gameState = malloc(sizeof(GameState));
 }
 
 void
@@ -376,14 +378,14 @@ retro_load_game(const struct retro_game_info *game)
 	if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt))
 		return false;
 
-	gameState.pixels32 = malloc(320*240*4);
+	gameState->pixels32 = malloc(320*240*4);
 
 	wasm_rt_init();
 	Z_loader_init_module();
 	Z_platform_init_module();
 
-	gameState.env = m3_NewEnvironment();
-	IM3Runtime loaderRuntime = m3_NewRuntime(gameState.env, 65536, NULL);
+	gameState->env = m3_NewEnvironment();
+	IM3Runtime loaderRuntime = m3_NewRuntime(gameState->env, 65536, NULL);
 	loaderRuntime->memory.maxPages = 4;
 	verifyM3(loaderRuntime, ResizeMemory(loaderRuntime, 4));
 
@@ -392,21 +394,21 @@ retro_load_game(const struct retro_game_info *game)
 
 	m3_FreeRuntime(loaderRuntime);
 
-	initRuntime(&gameState.runtime, gameState.env, cartWasm, cartSize);
+	initRuntime(&gameState->runtime, gameState->env, cartWasm, cartSize);
 
-	gameState.memory = m3_GetMemory(gameState.runtime.runtime, NULL, 0);
-	assert(gameState.memory != NULL);
+	gameState->memory = m3_GetMemory(gameState->runtime.runtime, NULL, 0);
+	assert(gameState->memory != NULL);
 
-	gameState.hasUpdFunc = m3_FindFunction(&gameState.updFunc, gameState.runtime.runtime, "upd") == NULL;
+	gameState->hasUpdFunc = m3_FindFunction(&gameState->updFunc, gameState->runtime.runtime, "upd") == NULL;
 
-	initRuntime(&audioState.runtime, gameState.env, cartWasm, cartSize);
-	audioState.memory = m3_GetMemory(audioState.runtime.runtime, NULL, 0);
-	audioState.hasSnd = m3_FindFunction(&audioState.snd, audioState.runtime.runtime, "snd") == NULL;
-	memcpy(audioState.registers, audioState.memory + 0x50, 32);
-	audioState.sampleIndex = 0;
+	initRuntime(&audioState->runtime, gameState->env, cartWasm, cartSize);
+	audioState->memory = m3_GetMemory(audioState->runtime.runtime, NULL, 0);
+	audioState->hasSnd = m3_FindFunction(&audioState->snd, audioState->runtime.runtime, "snd") == NULL;
+	memcpy(audioState->registers, audioState->memory + 0x50, 32);
+	audioState->sampleIndex = 0;
 
-	gameState.initialMemory = malloc(1 << 18);
-	memcpy(gameState.initialMemory, gameState.memory, 1 << 18);
+	gameState->initialMemory = malloc(1 << 18);
+	memcpy(gameState->initialMemory, gameState->memory, 1 << 18);
 
 	struct retro_input_descriptor desc[] = {
 		{ 0, RETRO_DEVICE_JOYPAD, 0, RETRO_DEVICE_ID_JOYPAD_LEFT,   "D-Pad Left" },
@@ -470,44 +472,44 @@ retro_run(void)
 	input_poll_cb();
 
 	for(int p = 0; p < 4; p++) {
-		gameState.memory[0x00044+p] = 0;
+		gameState->memory[0x00044+p] = 0;
 		for(int i = 0; i <= RETRO_DEVICE_ID_JOYPAD_R3; i++)
 			if(input_state_cb(p, RETRO_DEVICE_JOYPAD, 0, i))
-				gameState.memory[0x00044+p] ^= retro_bind[i];
+				gameState->memory[0x00044+p] ^= retro_bind[i];
 	}
 
-	if(gameState.hasUpdFunc) {
-		verifyM3(gameState.runtime.runtime, m3_CallV(gameState.updFunc));
+	if(gameState->hasUpdFunc) {
+		verifyM3(gameState->runtime.runtime, m3_CallV(gameState->updFunc));
 	}
-	memcpy(audioState.registers, gameState.memory + 0x50, 32);
+	memcpy(audioState->registers, gameState->memory + 0x50, 32);
 
-	Z_platformZ_endFrame(&gameState.runtime.platform_c);
+	Z_platformZ_endFrame(&gameState->runtime.platform_c);
 
-	uint32_t* palette = (uint32_t*)(gameState.memory + 0x13000);
-	uint8_t* pixels = gameState.memory + 120;
+	uint32_t* palette = (uint32_t*)(gameState->memory + 0x13000);
+	uint8_t* pixels = gameState->memory + 120;
 	for(uint32_t i = 0; i < 320*240; ++i) {
 		uint32_t c = palette[pixels[i]];
-		gameState.pixels32[i] = (c & 0xff00ff00) | ((c & 0xff) << 16) | ((c >> 16) & 0xff);
+		gameState->pixels32[i] = (c & 0xff00ff00) | ((c & 0xff) << 16) | ((c >> 16) & 0xff);
 	}
 
-	video_cb(gameState.pixels32, 320, 240, 320*sizeof(uint32_t));
+	video_cb(gameState->pixels32, 320, 240, 320*sizeof(uint32_t));
 
-	memcpy(audioState.memory + 0x50, audioState.registers, 32);
+	memcpy(audioState->memory + 0x50, audioState->registers, 32);
 	for(int i = 0; i < 44100/60; ++i) {
 		float_t left, right;
-		if(audioState.hasSnd) {
-			m3_CallV(audioState.snd, audioState.sampleIndex++);
-			m3_GetResultsV(audioState.snd, &left);
-			m3_CallV(audioState.snd, audioState.sampleIndex++);
-			m3_GetResultsV(audioState.snd, &right);
+		if(audioState->hasSnd) {
+			m3_CallV(audioState->snd, audioState->sampleIndex++);
+			m3_GetResultsV(audioState->snd, &left);
+			m3_CallV(audioState->snd, audioState->sampleIndex++);
+			m3_GetResultsV(audioState->snd, &right);
 		} else {
-			left = Z_platformZ_sndGes(&audioState.runtime.platform_c, audioState.sampleIndex++);
-			right = Z_platformZ_sndGes(&audioState.runtime.platform_c, audioState.sampleIndex++);
+			left = Z_platformZ_sndGes(&audioState->runtime.platform_c, audioState->sampleIndex++);
+			right = Z_platformZ_sndGes(&audioState->runtime.platform_c, audioState->sampleIndex++);
 		}
 		audio_cb((int16_t)(left * 32767.0f), (int16_t)(right * 32767.0f));
 	}
 
-	*(uint32_t*)&gameState.memory[0x00040] = gameState.frameNumber++ * 1000 / 60 + 8;
+	*(uint32_t*)&gameState->memory[0x00040] = gameState->frameNumber++ * 1000 / 60 + 8;
 }
 
 void
@@ -543,9 +545,9 @@ retro_set_audio_sample(retro_audio_sample_t cb)
 void
 retro_reset(void)
 {
-	memcpy(gameState.memory, gameState.initialMemory, 1 << 18);
-	audioState.sampleIndex = 0;
-	gameState.frameNumber = 0;
+	memcpy(gameState->memory, gameState->initialMemory, 1 << 18);
+	audioState->sampleIndex = 0;
+	gameState->frameNumber = 0;
 }
 
 size_t
@@ -557,24 +559,29 @@ retro_serialize_size(void)
 bool
 retro_serialize(void *data, size_t size)
 {
-	memcpy(data, gameState.memory, 1 << 18);
+	memcpy(data, gameState->memory, 1 << 18);
 	return true;
 }
 
 bool
 retro_unserialize(const void *data, size_t size)
 {
-	memcpy(gameState.memory, data, 1 << 18);
+	memcpy(gameState->memory, data, 1 << 18);
 	return true;
 }
 
 void
 retro_deinit(void) {
-	m3_FreeRuntime(audioState.runtime.runtime);
-	m3_FreeRuntime(gameState.runtime.runtime);
-	m3_FreeEnvironment(gameState.env);
-	free(gameState.initialMemory);
-	free(gameState.pixels32);
+	m3_FreeRuntime(audioState->runtime.runtime);
+	m3_FreeRuntime(gameState->runtime.runtime);
+	m3_FreeEnvironment(gameState->env);
+	free(gameState->initialMemory);
+	free(gameState->pixels32);
+
+	free(audioState);
+	audioState = NULL;
+	free(gameState);
+	gameState = NULL;
 }
 
 unsigned
