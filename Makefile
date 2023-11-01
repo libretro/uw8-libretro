@@ -407,7 +407,7 @@ else ifneq (,$(findstring armv,$(platform)))
 else ifeq ($(platform), emscripten)
 	TARGET := $(TARGET_NAME)_libretro_$(platform).bc
 	STATIC_LINKING=1
-	CFLAGS += -mtail-call
+	CFLAGS += -Dmusttail='emscripten_asyncify_does_not_support_musttail'
 
 # GCW0
 else ifeq ($(platform), gcw0)
