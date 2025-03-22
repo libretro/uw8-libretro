@@ -673,7 +673,10 @@ CFLAGS += -D_CRT_SECURE_NO_DEPRECATE
 else
 	TARGET := $(TARGET_NAME)_libretro.dll
 	CC ?= gcc
-	SHARED := -shared -static-libgcc -static-libstdc++ -s
+	SHARED := -shared -static-libgcc -static-libstdc++
+	ifneq ($(DEBUG), 1)
+   	SHARED += -s
+   	endif  
 endif
 
 ifeq ($(DEBUG), 1)
